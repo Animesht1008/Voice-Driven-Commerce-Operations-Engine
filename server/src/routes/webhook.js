@@ -166,58 +166,6 @@ const normalizeTranscriptText = (transcript) => {
   return "";
 };
 
-const normalizeEventValue = (value) => String(value || "").toLowerCase().trim();
-
-const extractLifecycleStatus = (body) => {
-  const candidates = [
-    body.status,
-    body.call_status,
-    body.callStatus,
-    body.callState,
-    body.state,
-    body.event,
-    body.type,
-    body.action,
-    body.dial_status,
-    body.telephony_data?.status,
-    body.telephony_data?.call_status,
-    body.telephony_data?.callStatus,
-  ];
-  return candidates
-    .filter((value) => value != null)
-    .map(normalizeEventValue)
-    .find(Boolean);
-};
-
-const isTerminalLifecycleStatus = (status) => {
-  if (!status) return false;
-  return [
-    "completed",
-    "ended",
-    "finished",
-    "hangup",
-    "terminated",
-    "answered",
-    "no-answer",
-    "no_answer",
-    "unanswered",
-    "failed",
-    "busy",
-    "rejected",
-    "completed_with_no_response",
-  ].some((term) => status.includes(term));
-};
-
-const shouldProcessWebhook = (body, responseString, transcriptText) => {
-  const lifecycleStatus = extractLifecycleStatus(body);
-  if (lifecycleStatus) {
-    if (isTerminalLifecycleStatus(lifecycleStatus)) return true;
-    if (responseString || transcriptText) return true;
-    return false;
-  }
-  return Boolean(responseString || transcriptText);
-};
-
 const extractIntent = (transcriptText, phase = 1) => {
   if (!transcriptText) return "";
 
@@ -286,11 +234,6 @@ router.post("/bolna", async (req, res) => {
     const responseString = transcriptIntent || inferredResponse || transcriptText || "";
 
     console.log(`[Webhook] Received — orderId: ${orderId}, phase: ${phase}, response: "${JSON.stringify(response)}", responseString: "${responseString}"`);
-
-    if (!shouldProcessWebhook(body, responseString, transcriptText)) {
-      console.log("[Webhook] Skipping non-terminal webhook event; keeping order status unchanged.");
-      return res.status(200).json({ ok: true });
-    }
 
     // Debug logging for payload inspection
     console.log("[Webhook] Debug - context_details keys:", body.context_details ? Object.keys(body.context_details) : 'null');
