@@ -1,0 +1,26 @@
+{
+  "name": "assignment_bolna",
+  "version": "1.0.0",
+  "description": "AI Voice Commerce Operations Assistant monorepo",
+  "main": "server/src/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Animesht1008/AI-Voice-Commerce-Operations-Assistant.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Animesht1008/AI-Voice-Commerce-Operations-Assistant/issues"
+  },
+  "homepage": "https://github.com/Animesht1008/AI-Voice-Commerce-Operations-Assistant#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
