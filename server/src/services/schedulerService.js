@@ -23,7 +23,17 @@ const processPendingActions = async () => {
       if (order.status === "Confirmed") {
         try {
           await updateOrder(order.id, { status: "Calling - Delivery Slot", nextActionAt: null });
-          await triggerBolnaCall({ order, phase: 2 });
+          await triggerBolnaCall({
+            order,
+            phase: 2,
+            metadata: {
+              orderId: order.id || order._id?.toString(),
+              phase: 2,
+              customerName: order.customer.name,
+              productName: order.product.name,
+              amount: order.product.amount,
+            },
+          });
         } catch {
           await updateOrder(order.id, {
             status: "Retry Pending",
@@ -43,7 +53,17 @@ const processPendingActions = async () => {
           retryCount: order.retryCount + 1,
         });
         try {
-          await triggerBolnaCall({ order, phase });
+          await triggerBolnaCall({
+            order,
+            phase,
+            metadata: {
+              orderId: order.id || order._id?.toString(),
+              phase,
+              customerName: order.customer.name,
+              productName: order.product.name,
+              amount: order.product.amount,
+            },
+          });
         } catch {
           await updateOrder(order.id, {
             status: "Retry Pending",

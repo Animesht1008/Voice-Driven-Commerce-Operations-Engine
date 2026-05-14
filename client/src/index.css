@@ -74,6 +74,8 @@ th, td { border-bottom: 1px solid #e2e8f0; text-align: left; padding: 10px 8px; 
 .toast { background: #0f172a; color: #fff; padding: 10px 12px; border-radius: 10px; font-weight: 600; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2); }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .actions button { padding: 6px 8px; font-size: 0.8rem; }
+.actions .delete-btn { background: #dc2626; color: white; }
+.actions .delete-btn:hover { background: #b91c1c; }
 .intro-card { margin-bottom: 12px; }
 .transcript-row td { background: #f8fafc; }
 

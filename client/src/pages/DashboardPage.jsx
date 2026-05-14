@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import OrderTable from "../components/OrderTable";
-import { fetchCallLogs, fetchOrders, simulateOrder } from "../services/api";
+import { fetchCallLogs, fetchOrders, simulateOrder, deleteOrder } from "../services/api";
 
 function DashboardPage() {
   const [orders, setOrders] = useState([]);
@@ -49,6 +49,15 @@ function DashboardPage() {
     showToast("Simulation event applied");
   };
 
+  const removeOrder = async (orderId) => {
+    await deleteOrder(orderId);
+    showToast("Order removed");
+    // Refresh data
+    const [ordersRes, logsRes] = await Promise.all([fetchOrders(), fetchCallLogs()]);
+    setOrders(ordersRes.data.orders);
+    setLogs(logsRes.data.logs);
+  };
+
   return (
     <>
       <section className="overview-grid">
@@ -57,7 +66,7 @@ function DashboardPage() {
         <div className="card metric"><p>Cancelled</p><h3>{overview.cancelled}</h3></div>
         <div className="card metric"><p>Pending Calls</p><h3>{overview.pendingCalls}</h3></div>
       </section>
-      <OrderTable orders={orders} onSimulate={simulate} />
+      <OrderTable orders={orders} onSimulate={simulate} onDelete={removeOrder} />
       <section className="card">
         <h2>Recent Call Activity</h2>
         <ul className="activity-list">

@@ -8,5 +8,6 @@ export const createOrder = (payload) => api.post("/orders", payload);
 export const fetchOrders = () => api.get("/orders");
 export const fetchCallLogs = () => api.get("/calls");
 export const simulateOrder = (orderId, payload) => api.post(`/orders/${orderId}/simulate`, payload);
+export const deleteOrder = (orderId) => api.delete(`/orders/${orderId}`);
 
 export default api;

@@ -1,5 +1,5 @@
 const express = require("express");
-const { createOrder, listOrders, getOrder, updateOrder } = require("../data/store");
+const { createOrder, listOrders, getOrder, updateOrder, deleteOrder } = require("../data/store");
 const { emitOrderCreated, emitCallCompleted } = require("../workflow/workflowEngine");
 
 const router = express.Router();
@@ -36,6 +36,12 @@ router.patch("/:id", async (req, res) => {
 
   const updatedOrder = await updateOrder(req.params.id, req.body);
   res.json({ order: updatedOrder });
+});
+
+router.delete("/:id", async (req, res) => {
+  const deleted = await deleteOrder(req.params.id);
+  if (!deleted) return res.status(404).json({ error: "Order not found." });
+  res.status(204).send();
 });
 
 router.post("/:id/simulate", async (req, res) => {

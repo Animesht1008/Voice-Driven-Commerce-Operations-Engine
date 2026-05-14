@@ -60,7 +60,7 @@ const createOrder = async (payload) => {
 };
 
 const updateOrder = async (id, updates) => {
-  if (env.storageMode === "mongo") return withId(await Order.findByIdAndUpdate(id, updates, { new: true }));
+  if (env.storageMode === "mongo") return withId(await Order.findByIdAndUpdate(id, updates, { returnDocument: "after" }));
   const db = await readDb();
   const idx = db.orders.findIndex((o) => o.id === id);
   if (idx === -1) return null;
@@ -71,7 +71,7 @@ const updateOrder = async (id, updates) => {
 
 const appendCallLog = async (id, log) => {
   if (env.storageMode === "mongo") {
-    await Order.findByIdAndUpdate(id, { $push: { callLogs: log }, $set: { updatedAt: new Date() } });
+    await Order.findByIdAndUpdate(id, { $push: { callLogs: log }, $set: { updatedAt: new Date() } }, { returnDocument: "after" });
     return getOrder(id);
   }
   const order = await getOrder(id);
@@ -94,11 +94,25 @@ const getOrdersNeedingAction = async (now) => {
   return db.orders.filter((o) => o.nextActionAt && new Date(o.nextActionAt) <= now);
 };
 
+const deleteOrder = async (id) => {
+  if (env.storageMode === "mongo") {
+    await Order.findByIdAndDelete(id);
+    return true;
+  }
+  const db = await readDb();
+  const idx = db.orders.findIndex((o) => o.id === id);
+  if (idx === -1) return false;
+  db.orders.splice(idx, 1);
+  await writeDb(db);
+  return true;
+};
+
 module.exports = {
   listOrders,
   getOrder,
   createOrder,
   updateOrder,
+  deleteOrder,
   appendCallLog,
   getOrdersNeedingAction,
 };

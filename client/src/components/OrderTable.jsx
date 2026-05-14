@@ -1,6 +1,6 @@
 import StatusBadge from "./StatusBadge";
 
-function OrderTable({ orders, onSimulate }) {
+function OrderTable({ orders, onSimulate, onDelete }) {
   return (
     <div className="card">
       <h2>Active Operations</h2>
@@ -26,6 +26,7 @@ function OrderTable({ orders, onSimulate }) {
                 <button type="button" onClick={() => onSimulate(order.id, { scenario: "cancelled", phase: 1 })}>Cancel</button>
                 <button type="button" onClick={() => onSimulate(order.id, { scenario: "no-answer", phase: 1 })}>No Answer</button>
                 <button type="button" onClick={() => onSimulate(order.id, { scenario: "rescheduled", phase: 2 })}>Reschedule</button>
+                <button type="button" className="delete-btn" onClick={() => onDelete(order.id)}>×</button>
               </td>
             </tr>
           ))}

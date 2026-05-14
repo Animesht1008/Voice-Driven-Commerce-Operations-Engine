@@ -8,7 +8,17 @@ const emitOrderCreated = async (orderId) => {
   if (!order) return null;
   await updateOrder(orderId, { status: "Calling - Confirmation" });
   try {
-    await triggerBolnaCall({ order, phase: 1 });
+    await triggerBolnaCall({
+      order,
+      phase: 1,
+      metadata: {
+        orderId: order.id || order._id?.toString(),
+        phase: 1,
+        customerName: order.customer.name,
+        productName: order.product.name,
+        amount: order.product.amount,
+      },
+    });
   } catch (error) {
     await updateOrder(orderId, {
       status: "Retry Pending",
