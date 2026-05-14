@@ -8,6 +8,7 @@ const callsRoutes = require("./routes/calls");
 
 const app = express();
 app.use(cors({ origin: env.frontendUrl }));
+// Raw body for Bolna webhook so HMAC can use exact bytes (stronger than JSON.stringify round-trip).
 app.use("/api/webhook/bolna", express.raw({ type: "application/json" }));
 app.use(express.json());
 app.use(morgan("dev"));

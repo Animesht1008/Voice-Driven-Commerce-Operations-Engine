@@ -10,7 +10,7 @@ function CreateOrderPage() {
     try {
       setLoading(true);
       await createOrder(form);
-      setMessage("Order placed. Confirmation call has been triggered.");
+      setMessage("Order placed. Confirmation call workflow started.");
     } catch (error) {
       setMessage(error?.response?.data?.error || "Failed to create order.");
     } finally {
@@ -21,8 +21,8 @@ function CreateOrderPage() {
   return (
     <>
       <section className="card intro-card">
-        <h2>Voice Workflow Automation</h2>
-        <p>The system is designed around workflow automation instead of chatbot interaction.</p>
+        <h2>COD Form DashBoard</h2>
+        <p>Welcome to the COD Details Form Dashboard!</p>
       </section>
       <OrderForm onSubmit={submitOrder} loading={loading} />
       {message && <p className="flash">{message}</p>}

@@ -6,6 +6,11 @@ const Order = require("../models/Order");
 
 const dbPath = path.join(process.cwd(), "src", "data", "db.json");
 
+// Add safety check for Render deployment
+if (env.storageMode === "json" && process.env.NODE_ENV === "production") {
+  console.warn("[Store] ⚠️ WARNING: JSON storage in production will lose data on redeploy. Use STORAGE_MODE=mongo");
+}
+
 const ensureDb = async () => {
   try {
     await fs.access(dbPath);
@@ -20,7 +25,11 @@ const readDb = async () => {
   return JSON.parse(raw);
 };
 
-const writeDb = async (db) => fs.writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
+const writeDb = async (db) => {
+  // NOTE: JSON storage has no write locking — concurrent writes may
+  // conflict. Use STORAGE_MODE=mongo for production reliability.
+  return fs.writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
+};
 
 const withId = (order) => {
   if (!order) return null;
@@ -29,75 +38,146 @@ const withId = (order) => {
 };
 
 const listOrders = async () => {
-  if (env.storageMode === "mongo") {
-    const orders = await Order.find().sort({ createdAt: -1 }).lean();
-    return orders.map(withId);
+  try {
+    if (env.storageMode === "mongo") {
+      const orders = await Order.find().sort({ createdAt: -1 }).lean();
+      return orders.map(withId);
+    }
+    const db = await readDb();
+    return db.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  } catch (err) {
+    console.error("[Store] listOrders error:", err.message);
+    return [];
   }
-  const db = await readDb();
-  return db.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 const getOrder = async (id) => {
-  if (env.storageMode === "mongo") return withId(await Order.findById(id));
-  const db = await readDb();
-  return db.orders.find((o) => o.id === id) || null;
+  try {
+    if (!id) return null;
+    if (env.storageMode === "mongo") {
+      const byId = await Order.findById(id);
+      if (byId) return withId(byId);
+      return withId(
+        await Order.findOne({
+          $or: [
+            { id },
+            { orderId: id },
+            { order_id: id },
+            { _id: id },
+          ],
+        })
+      );
+    }
+
+    const db = await readDb();
+    return (
+      db.orders.find(
+        (o) =>
+          o.id === id ||
+          o._id === id ||
+          o.orderId === id ||
+          o.order_id === id
+      ) ||
+      null
+    );
+  } catch (err) {
+    console.error("[Store] getOrder error:", err.message);
+    return null;
+  }
 };
 
 const createOrder = async (payload) => {
-  if (env.storageMode === "mongo") return withId(await Order.create(payload));
-  const db = await readDb();
-  const now = new Date().toISOString();
-  const order = {
-    id: crypto.randomUUID(),
-    ...payload,
-    callLogs: payload.callLogs || [],
-    createdAt: now,
-    updatedAt: now,
-  };
-  db.orders.push(order);
-  await writeDb(db);
-  return order;
+  try {
+    if (env.storageMode === "mongo") return withId(await Order.create(payload));
+    const db = await readDb();
+    const now = new Date().toISOString();
+    const order = {
+      id: crypto.randomUUID(),
+      ...payload,
+      callLogs: payload.callLogs || [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    db.orders.push(order);
+    await writeDb(db);
+    return order;
+  } catch (err) {
+    console.error("[Store] createOrder error:", err.message);
+    return null;
+  }
 };
 
 const updateOrder = async (id, updates) => {
-  if (env.storageMode === "mongo") return withId(await Order.findByIdAndUpdate(id, updates, { returnDocument: "after" }));
-  const db = await readDb();
-  const idx = db.orders.findIndex((o) => o.id === id);
-  if (idx === -1) return null;
-  db.orders[idx] = { ...db.orders[idx], ...updates, updatedAt: new Date().toISOString() };
-  await writeDb(db);
-  return db.orders[idx];
+  try {
+    if (env.storageMode === "mongo") {
+      return withId(
+        await Order.findByIdAndUpdate(id, updates, { returnDocument: "after" })
+      );
+    }
+    const db = await readDb();
+    const idx = db.orders.findIndex((o) => o.id === id);
+    if (idx === -1) return null;
+    db.orders[idx] = {
+      ...db.orders[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    await writeDb(db);
+    return db.orders[idx];
+  } catch (err) {
+    console.error("[Store] updateOrder error:", err.message);
+    return null;
+  }
 };
 
 const appendCallLog = async (id, log) => {
-  if (env.storageMode === "mongo") {
-    await Order.findByIdAndUpdate(id, { $push: { callLogs: log }, $set: { updatedAt: new Date() } }, { returnDocument: "after" });
-    return getOrder(id);
+  try {
+    if (env.storageMode === "mongo") {
+      await Order.findByIdAndUpdate(
+        id,
+        { $push: { callLogs: log }, $set: { updatedAt: new Date() } },
+        { returnDocument: "after" }
+      );
+      return getOrder(id);
+    }
+    const order = await getOrder(id);
+    if (!order) return null;
+    const callLogs = [...(order.callLogs || []), log];
+    return updateOrder(id, { callLogs });
+  } catch (err) {
+    console.error("[Store] appendCallLog error:", err.message);
+    return null;
   }
-  const order = await getOrder(id);
-  if (!order) return null;
-  const callLogs = [...(order.callLogs || []), log];
-  return updateOrder(id, { callLogs });
 };
 
 const getOrdersNeedingAction = async (now) => {
   if (env.storageMode === "mongo") {
     const orders = await Order.find({
       nextActionAt: { $ne: null, $lte: now },
-      status: { $in: ["Retry Pending", "Confirmed"] },
+      status: { $in: ["Pending", "Retry Pending", "Confirmed", "Calling - Confirmation", "Calling - Delivery Slot"] },
     })
       .sort({ nextActionAt: 1 })
       .lean();
     return orders.map(withId);
   }
   const db = await readDb();
-  return db.orders.filter((o) => o.nextActionAt && new Date(o.nextActionAt) <= now);
+  return db.orders.filter((o) =>
+    o.nextActionAt &&
+    new Date(o.nextActionAt) <= now &&
+    [
+      "Pending",
+      "Retry Pending",
+      "Confirmed",
+      "Calling - Confirmation",
+      "Calling - Delivery Slot",
+    ].includes(o.status)
+  );
 };
 
 const deleteOrder = async (id) => {
   if (env.storageMode === "mongo") {
-    await Order.findByIdAndDelete(id);
-    return true;
+    const deleted = await Order.findByIdAndDelete(id);
+    return Boolean(deleted);
   }
   const db = await readDb();
   const idx = db.orders.findIndex((o) => o.id === id);

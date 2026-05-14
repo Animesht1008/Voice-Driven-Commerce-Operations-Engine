@@ -1,14 +1,17 @@
 # Voice-Driven Commerce Operations Engine
 
-Voice-first operations system for COD ecommerce workflows.
+COD voice operations: **confirm** → **schedule delivery** → **auto-update** dashboard and call logs.
 
-## What It Automates
 
-- **Phase 1:** COD confirmation call (`Confirmed` / `Cancelled` / `Retry Pending`)
-- **Phase 2:** Delivery slot call (`Keep` / `Rescheduled` / `Retry Pending`)
-- **Phase 3:** Auto dashboard + call log + workflow state transitions
+## What it does
 
-## System Architecture
+| Phase | Voice goal | Outcomes |
+|-------|-------------|----------|
+| 1 | COD confirmation | Confirmed / Cancelled / Retry Pending |
+| 2 | Delivery slot | Slot Confirmed / Rescheduled / Retry Pending |
+| 3 | Ops visibility | Dashboard + call logs + `nextActionAt` scheduling |
+
+## System design
 
 ### Complete Integration Flow
 
@@ -41,7 +44,7 @@ flowchart TD
     style PHONE fill:#ef4444,color:#fff
 ```
 
-### Workflow State Machine
+### Workflow architecture
 
 ```mermaid
 stateDiagram-v2
@@ -77,7 +80,7 @@ stateDiagram-v2
     style RetryPending fill:#e0e7ff,stroke:#6366f1,stroke-width:2px
 ```
 
-### Webhook Data Flow
+### Webhook data flow
 
 ```mermaid
 flowchart LR
@@ -99,75 +102,15 @@ flowchart LR
     style E fill:#4f46e5,color:#fff
 ```
 
-## Core Features
+Statuses in the API use strings such as `Calling - Confirmation` and `Calling - Delivery Slot`; `workflowPhase` (1 or 2) decides which retry call is placed.
 
-- Event-driven workflow logic (`Order Created`, `Call Completed`, `Retry Due`)
-- Retry engine with:
-  - `retryCount` / `maxRetries`
-  - `nextActionAt` scheduling
-  - Exponential backoff support
-- Real Bolna API integration with:
-  - Metadata passing (`recipient_data`)
-  - Transcript capture (string/array handling)
-  - Intent extraction from speech
-- Transcript storage and "View Conversation" in call logs
-- Dashboard sections:
-  - Overview cards (total, pending, confirmed, etc.)
-  - Active operations table with live status
-  - Recent call activity with transcripts
-- Visual polish:
-  - Status pulse animation for calling states
-  - Toast notifications on state changes
-  - Real-time polling
-- Multi-language support:
-  - English prompts
-  - Hindi prompts
-  - Dynamic template variable substitution
+## Stack
 
-### Latest Changes (v1.0.5 - Workflow & Variable Fixes)
+- **Frontend:** React (Vite), React Router, Axios, polling
+- **Backend:** Node.js, Express, Mongoose (optional), Bolna REST + webhook
+- **Storage:** `STORAGE_MODE=json` (local) or `STORAGE_MODE=mongo` (production)
 
-✅ **Variable Interpolation Fixed** - Changed prompts to use `{{name}}`, `{{product}}`, `{{amount}}` for Bolna dashboard compatibility  
-✅ **Webhook Guards Added** - Only process webhooks with transcripts to prevent premature status updates  
-✅ **Duplicate Webhook Prevention** - Skip processing if phase already has completed call log  
-✅ **Improved Response Extraction** - Phase-aware intent detection from full transcript text  
-✅ **Mongoose Warnings Fixed** - Replaced deprecated `new: true` with `returnDocument: "after"`  
-
-See [DETAILED_README.md](DETAILED_README.md#latest-changes-v105---workflow--variable-fixes) for full details.
-
-## Data Schema (Order)
-
-```js
-{
-  customer: { name, phone },
-  product: { name, amount },
-  address,
-  language,             // en | hi
-  status,               // Pending, Calling-Confirmation, Confirmed, etc.
-  deliverySlot,         // "Tomorrow 2-5 PM" or null
-  retryCount,           // current retry attempt
-  maxRetries,           // max retry attempts (default 2)
-  nextActionAt,         // ISO timestamp for scheduler
-  callLogs: [
-    { 
-      phase,            // 1 or 2
-      callId,           // Bolna call_id
-      status,           // initiated, completed, failed
-      response,         // confirmed | cancelled | rescheduled | kept
-      durationSec,      // call duration
-      timestamp,        // when call was made
-      newSlot,          // new delivery slot if rescheduled
-      transcript: [
-        { text: "agent: Hello..." },
-        { text: "user: yes confirm" }
-      ]
-    }
-  ],
-  createdAt,
-  updatedAt
-}
-```
-
-## Quick Start (Local)
+## Quick start (local)
 
 ```bash
 npm install
@@ -175,211 +118,49 @@ npm install --prefix server
 npm install --prefix client
 ```
 
-Copy envs:
-
-- `server/.env.example` -> `server/.env`
-- `client/.env.example` -> `client/.env`
-
-Run:
+Copy `server/.env.example` → `server/.env` and set **`SIMULATION_MODE=true`** if you do not have Bolna keys yet.  
+Copy `client/.env.example` → `client/.env` for production API URL, or use default localhost in `client/.env` (see repo’s local template).
 
 ```bash
 npm run dev
 ```
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:5000`
+- UI: `http://localhost:5173`  
+- API: `http://localhost:5000`
 
 ## API
 
-- `POST /api/orders` - Create order + emit `Order Created Event`
-- `GET /api/orders` - List orders
-- `PATCH /api/orders/:id` - Manual patch
-- `POST /api/orders/:id/simulate` - Simulate failure/success scenarios
-- `POST /api/webhook/bolna` - Bolna webhook event intake
-- `GET /api/calls` - Flattened call logs
+- `POST /api/orders` — create order + start workflow  
+- `GET /api/orders`  
+- `PATCH /api/orders/:id`  
+- `POST /api/orders/:id/simulate` — demo success/failure paths  
+- `POST /api/webhook/bolna` — Bolna outcomes (`metadata.orderId`, `metadata.phase`, …)  
+- `GET /api/calls` — flattened logs  
 
-## Real Bolna Integration
+## Bolna webhook (production-hardened)
 
-Configure backend env:
+Aligned with **Voice-Driven-Commerce-Operations-Engine1**:
 
-- `BOLNA_API_KEY` - API authentication key
-- `BOLNA_API_BASE_URL` - API base URL (default: https://api.bolna.ai)
-- `BOLNA_AGENT_ID_PHASE1` - Agent ID for order confirmation
-- `BOLNA_AGENT_ID_PHASE2` - Agent ID for delivery slot
-- `BOLNA_WEBHOOK_SECRET` - Webhook signature secret
-- `APP_BASE_URL` - Public backend URL for webhook callbacks
+- **Raw JSON body** on `POST /api/webhook/bolna` so `BOLNA_WEBHOOK_SECRET` HMAC can use the **exact request bytes** (not `JSON.stringify` after parsing).
+- **Immediate `200 { ok, received }`** response, then **async** processing (Bolna-friendly timeouts/retries).
+- Parses **`context_details.recipient_data`** (and fallbacks) for `orderId` / `phase` / `callId`.
+- **`extractIntent()`** from transcript text (English + common Hindi tokens) when `intent` is missing.
+- **`transcript.summary`** (object-shaped `transcript`) is merged into text and used as a fallback **response** when Bolna sends a summary only.
+- **Ignores** events with **no transcript** (pings / partial payloads) so they do not mutate workflow state.
+- **Duplicate** completed webhooks for the same phase are ignored (no double state transitions).
 
-Webhook format (Bolna sends):
+Outbound calls include **`recipient_data` / `user_data` / `extra_data`** so Bolna can echo identifiers back into webhooks. Phase 2 also sends **`delivery_slot`** / **`deliverySlot`** for dashboard agent templates (e.g. `{{delivery_slot}}`).
 
-```json
-{
-  "context_details": {
-    "recipient_data": {
-      "orderId": "...",
-      "phase": 1,
-      "callId": "call_...",
-      "customer_name": "Animesh",
-      "product_name": "Laptop",
-      "amount": 120000
-    }
-  },
-  "transcript": "agent: Hello...\nuser: confirm\nagent: Thank you",
-  "telephony_data": {
-    "duration": 45
-  }
-}
-```
+**Scheduling:** `RETRY_DELAY_MINUTES` controls retry spacing; **`PHASE2_DELAY_MINUTES`** (default 2) controls how long after confirmation the delivery call is scheduled in production (simulation still uses 30s). JSON file mode applies the same **`Confirmed` / `Retry Pending`** filter as Mongo when selecting due orders (fixes a common demo bug).
 
-## Production Deployment (Render + MongoDB Atlas)
+## Production (Render + MongoDB Atlas)
 
-### Step 1: Set up MongoDB Atlas
+1. **Atlas:** cluster + user + allow `0.0.0.0/0` (or Render IPs) → `MONGODB_URI`  
+2. **Render (backend):** root `server`, build `npm install`, start `npm start`  
+   Set `STORAGE_MODE=mongo`, `MONGODB_URI`, `APP_BASE_URL` (Render URL), `FRONTEND_URL` (Vercel URL), Bolna vars from dashboard.  
+3. **Vercel (frontend):** root `client`, `VITE_API_URL=https://<render-host>/api`  
+4. **Bolna:** webhook = `https://<render-host>/api/webhook/bolna`  
 
-1. Create Atlas cluster (free tier OK)
-2. Get connection URI: `mongodb+srv://user:pass@cluster.mongodb.net/?appName=Cluster0`
+## Engineering note
 
-### Step 2: Deploy Backend on Render
-
-1. Create new Web Service on Render
-2. Connect GitHub repo
-3. Set root directory: `server`
-4. Build command: `npm install`
-5. Start command: `npm start`
-6. Add environment variables:
-
-```
-STORAGE_MODE=mongo
-MONGODB_URI=<your-atlas-uri>
-APP_BASE_URL=https://<render-service-name>.onrender.com
-FRONTEND_URL=https://<vercel-frontend-url>.vercel.app
-BOLNA_API_KEY=<your-bolna-key>
-BOLNA_AGENT_ID_PHASE1=<agent-id>
-BOLNA_AGENT_ID_PHASE2=<agent-id>
-BOLNA_WEBHOOK_SECRET=<webhook-secret>
-```
-
-### Step 3: Deploy Frontend on Vercel
-
-1. Fork repo on GitHub
-2. Create new project on Vercel
-3. Set root directory: `client`
-4. Add environment variable:
-
-```
-VITE_API_URL=https://<render-service-name>.onrender.com/api
-```
-
-### Step 4: Configure Bolna Webhook
-
-In Bolna agent settings, set webhook URL to:
-
-```
-https://<render-service-name>.onrender.com/api/webhook/bolna
-```
-
-## Engineering Notes
-
-### Storage Adapter Pattern
-
-The system uses an adapter pattern for storage, allowing seamless switching:
-
-```javascript
-// Local/Demo mode
-STORAGE_MODE=json  // In-memory JSON file storage
-
-// Production mode
-STORAGE_MODE=mongo // MongoDB Atlas persistence
-```
-
-Both modes implement the same interface, so business logic remains unchanged.
-
-### Webhook Security
-
-- Raw body middleware is registered before JSON parsing for signature verification
-- Supports both HMAC-verified and demo modes
-- Optional re-enablement in production with proper secret configuration
-
-### Environment Variable Handling
-
-**Development**: Reads from `.env` file using dotenv
-**Production (Render)**: Reads directly from `process.env` (injected by platform)
-
-This ensures:
-- No exposed secrets in production deployments
-- Seamless local development workflow
-- Support for dynamic configuration
-
-### Prompt Templating
-
-Prompts support variable substitution:
-
-```javascript
-fillTemplate(
-  "Hello {{name}}, your {{product}} order for ₹{{amount}} is confirmed.",
-  { name: "Animesh", product: "Laptop", amount: 120000 }
-)
-// → "Hello Animesh, your Laptop order for ₹120000 is confirmed."
-```
-
-Variables are passed through the entire call chain: workflow → service → Bolna.
-
-### For Demo Simplicity
-
-Delayed scheduling uses in-memory `nextActionAt` timestamps.  
-In production, migrate to persistent queue systems like BullMQ or Temporal for reliability.
-
-
-npm run dev
-```
-
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:5000`
-
-## API
-
-- `POST /api/orders` - Create order + emit `Order Created Event`
-- `GET /api/orders` - List orders
-- `PATCH /api/orders/:id` - Manual patch
-- `POST /api/orders/:id/simulate` - Simulate failure/success scenarios
-- `POST /api/webhook/bolna` - Bolna webhook event intake
-- `GET /api/calls` - Flattened call logs
-
-## Real Bolna Integration
-
-Configure backend env:
-
-- `BOLNA_API_KEY`
-- `BOLNA_API_BASE_URL`
-- `BOLNA_AGENT_ID_PHASE1`
-- `BOLNA_AGENT_ID_PHASE2`
-- `BOLNA_WEBHOOK_SECRET`
-- `APP_BASE_URL` (public backend URL so Bolna can call webhook)
-
-Webhook should send at least:
-
-- `orderId` (or `metadata.orderId`)
-- `phase` (or `metadata.phase`)
-- `response` / `intent`
-- `callId`
-- optional `transcript`
-
-## Production Deployment (Render + MongoDB Atlas)
-
-1. Create Atlas cluster and copy `MONGODB_URI`.
-2. Deploy backend on Render:
-   - Root: `server`
-   - Build: `npm install`
-   - Start: `npm start`
-   - Env: set all backend vars, especially:
-     - `STORAGE_MODE=mongo`
-     - `MONGODB_URI=<atlas-uri>`
-     - `APP_BASE_URL=<render-backend-url>`
-3. Deploy frontend on Vercel:
-   - Root: `client`
-   - Env: `VITE_API_URL=<render-backend-url>/api`
-4. Put backend webhook URL into Bolna agent config:
-   - `<APP_BASE_URL>/api/webhook/bolna`
-
-## Engineering Note
-
-For demo simplicity, delayed scheduling can be handled in-memory.  
-In production, move scheduling/retry jobs to a persistent queue (BullMQ / Temporal).
+In-memory polling scheduler is fine for demos. For production scale, move delayed work to **BullMQ** or **Temporal**.

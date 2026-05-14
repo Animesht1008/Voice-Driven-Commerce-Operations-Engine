@@ -19,14 +19,31 @@ function OrderTable({ orders, onSimulate, onDelete }) {
             <tr key={order.id}>
               <td>{order.customer.name}</td>
               <td>{order.product.name}</td>
-              <td><StatusBadge status={order.status} /></td>
+              <td>
+                <StatusBadge status={order.status} />
+              </td>
               <td>{order.deliverySlot || "-"}</td>
               <td className="actions">
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "confirmed", phase: 1 })}>Confirm</button>
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "cancelled", phase: 1 })}>Cancel</button>
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "no-answer", phase: 1 })}>No Answer</button>
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "rescheduled", phase: 2 })}>Reschedule</button>
-                <button type="button" className="delete-btn" onClick={() => onDelete(order.id)}>×</button>
+                <button type="button" onClick={() => onSimulate(order.id, { scenario: "confirmed", phase: 1 })}>
+                  Confirm
+                </button>
+                <button type="button" onClick={() => onSimulate(order.id, { scenario: "cancelled", phase: 1 })}>
+                  Cancel
+                </button>
+                <button type="button" onClick={() => onSimulate(order.id, { scenario: "no-answer", phase: 1 })}>
+                  No Answer
+                </button>
+                <button type="button" onClick={() => onSimulate(order.id, { scenario: "rescheduled", phase: 2 })}>
+                  Reschedule
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => onDelete(order.id)}
+                  className="btn-delete"
+                  title="Clear call records"
+                >
+                  ✕
+                </button>
               </td>
             </tr>
           ))}

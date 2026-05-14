@@ -1,6 +1,6 @@
 const { env } = require("../config/env");
 const { getOrder, getOrdersNeedingAction, updateOrder } = require("../data/store");
-const { triggerBolnaCall } = require("./callService");
+const { triggerBolnaCall, deliveryDefault } = require("./callService");
 
 let intervalHandle = null;
 let isProcessing = false;
@@ -10,8 +10,15 @@ const scheduleNextAction = async (orderId, whenIso) => {
 };
 
 const schedulePhaseTwoCall = async (orderId) => {
-  const delayMs = env.simulationMode ? 30000 : env.retryDelayMinutes * 60 * 1000;
+  const delayMs = env.simulationMode ? 30000 : env.phase2DelayMinutes * 60 * 1000;
   await scheduleNextAction(orderId, new Date(Date.now() + delayMs).toISOString());
+};
+
+const scheduleCallRetry = async (orderId, status) => {
+  await updateOrder(orderId, {
+    status,
+    nextActionAt: new Date(Date.now() + env.retryDelayMinutes * 60 * 1000).toISOString(),
+  });
 };
 
 const processPendingActions = async () => {
@@ -20,57 +27,83 @@ const processPendingActions = async () => {
   try {
     const dueOrders = await getOrdersNeedingAction(new Date());
     for (const order of dueOrders) {
-      if (order.status === "Confirmed") {
+      if (order.status === "Pending") {
         try {
-          await updateOrder(order.id, { status: "Calling - Delivery Slot", nextActionAt: null });
+          await updateOrder(order.id, {
+            status: "Calling - Confirmation",
+            nextActionAt: null,
+            workflowPhase: 1,
+          });
+          const fresh = await getOrder(order.id);
           await triggerBolnaCall({
-            order,
-            phase: 2,
+            order: fresh,
+            phase: 1,
             metadata: {
-              orderId: order.id || order._id?.toString(),
-              phase: 2,
-              customerName: order.customer.name,
-              productName: order.product.name,
-              amount: order.product.amount,
+              orderId: fresh.id,
+              phase: 1,
+              customerName: fresh.customer.name,
+              productName: fresh.product.name,
+              amount: fresh.product.amount,
             },
           });
         } catch {
+          await scheduleCallRetry(order.id, "Calling - Confirmation");
+        }
+        continue;
+      }
+
+      if (order.status === "Confirmed") {
+        try {
           await updateOrder(order.id, {
-            status: "Retry Pending",
-            nextActionAt: new Date(
-              Date.now() + env.retryDelayMinutes * 60 * 1000
-            ).toISOString(),
+            status: "Calling - Delivery Slot",
+            nextActionAt: null,
+            workflowPhase: 2,
           });
+          const fresh = await getOrder(order.id);
+          await triggerBolnaCall({
+            order: fresh,
+            phase: 2,
+            metadata: {
+              orderId: fresh.id,
+              phase: 2,
+              customerName: fresh.customer.name,
+              productName: fresh.product.name,
+              amount: fresh.product.amount,
+              deliverySlot: fresh.deliverySlot || deliveryDefault,
+            },
+          });
+        } catch {
+          await scheduleCallRetry(order.id, "Calling - Delivery Slot");
         }
         continue;
       }
 
       if (order.status === "Retry Pending" && order.retryCount < order.maxRetries) {
-        const phase = order.deliverySlot ? 2 : 1;
+        const phase = order.workflowPhase || 1;
         await updateOrder(order.id, {
           status: phase === 1 ? "Calling - Confirmation" : "Calling - Delivery Slot",
           nextActionAt: null,
           retryCount: order.retryCount + 1,
         });
+        const fresh = await getOrder(order.id);
         try {
           await triggerBolnaCall({
-            order,
+            order: fresh,
             phase,
             metadata: {
-              orderId: order.id || order._id?.toString(),
+              orderId: fresh.id,
               phase,
-              customerName: order.customer.name,
-              productName: order.product.name,
-              amount: order.product.amount,
+              customerName: fresh.customer.name,
+              productName: fresh.product.name,
+              amount: fresh.product.amount,
+              ...(phase === 2 && { deliverySlot: fresh.deliverySlot || deliveryDefault }),
             },
           });
         } catch {
-          await updateOrder(order.id, {
-            status: "Retry Pending",
-            nextActionAt: new Date(
-              Date.now() + env.retryDelayMinutes * 60 * 1000
-            ).toISOString(),
-          });
+          await scheduleCallRetry(
+            order.id,
+            phase === 1 ? "Calling - Confirmation" : "Calling - Delivery Slot"
+          );
         }
       }
     }

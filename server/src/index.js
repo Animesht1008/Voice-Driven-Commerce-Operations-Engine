@@ -8,11 +8,11 @@ const bootstrap = async () => {
   startScheduler();
   app.listen(env.port, () => {
     console.log(`Backend running on http://localhost:${env.port}`);
-    console.log(`Workflow Engine + API Layer active (storage=${env.storageMode})`);
+    console.log(`Storage mode: ${env.storageMode}`);
   });
 };
 
-bootstrap().catch((error) => {
-  console.error("Server bootstrap failed:", error.message);
+bootstrap().catch((err) => {
+  console.error("Server bootstrap failed:", err.message);
   process.exit(1);
 });

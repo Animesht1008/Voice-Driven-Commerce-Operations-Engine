@@ -8,8 +8,12 @@ function CallLogsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await fetchCallLogs();
-      setLogs(data.logs);
+      try {
+        const { data } = await fetchCallLogs();
+        setLogs(data.logs);
+      } catch {
+        /* ignore transient network errors */
+      }
     };
     load();
     const timer = setInterval(load, 5000);

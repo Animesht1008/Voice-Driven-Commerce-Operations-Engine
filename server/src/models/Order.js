@@ -36,6 +36,7 @@ const orderSchema = new mongoose.Schema(
     language: { type: String, enum: ["en", "hi"], default: "en" },
     status: { type: String, default: "Pending" },
     deliverySlot: { type: String, default: null },
+    workflowPhase: { type: Number, default: 1 },
     retryCount: { type: Number, default: 0 },
     maxRetries: { type: Number, default: 2 },
     nextActionAt: { type: Date, default: null },

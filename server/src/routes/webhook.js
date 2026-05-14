@@ -5,86 +5,259 @@ const { emitCallCompleted } = require("../workflow/workflowEngine");
 
 const router = express.Router();
 
-// Reads transcript string and extracts customer's intent
-// e.g. "confirm" → "confirmed", "reschedule" → "rescheduled"
+// Webhook signature verification for security
+const verifyWebhookSignature = () => {
+  // Bolna does not send an HMAC signature in this integration,
+  // so webhook validation must remain disabled until the provider
+  // supports a verifiable signing scheme.
+  return true;
+};
+
+const extractWebhookMetadata = (body) => {
+  const recipientData =
+    body.context_details?.recipient_data ||
+    body.context?.recipient_data ||
+    body.recipient_data ||
+    body.agent_context_details?.recipient_data ||
+    body.data?.recipient_data ||
+    body.recipientData ||
+    body.data?.recipientData ||
+    {};
+
+  const parsedRecipientData =
+    typeof recipientData === "string"
+      ? (() => {
+          try {
+            return JSON.parse(recipientData);
+          } catch {
+            return { raw: recipientData };
+          }
+        })()
+      : recipientData;
+
+  console.log(
+    "[Webhook] Raw recipientData:",
+    JSON.stringify(parsedRecipientData, null, 2)
+  );
+
+  return {
+    orderId:
+      parsedRecipientData.orderId ||
+      parsedRecipientData.order_id ||
+      parsedRecipientData.order_id ||
+      body.orderId ||
+      body.order_id,
+
+    phase:
+      Number(parsedRecipientData.phase || parsedRecipientData.phase_number || 1),
+
+    callId:
+      parsedRecipientData.callId ||
+      parsedRecipientData.call_id ||
+      body.call_id ||
+      body.execution_id,
+
+    recipientData: parsedRecipientData,
+  };
+};
+
+const parseStructuredResponse = (value) => {
+  if (value == null) return {
+    reply: "",
+    intent: "",
+    status: "",
+    decision: "",
+    raw: ""
+  };
+
+  if (typeof value === "object") {
+    const reply = String(value.reply || value.text || value.message || value.output || value.outputText || value.answer || value.response || "");
+    const intent = String(value.intent || value.action || value.final_decision || value.decision || value.status || value.result || value.outcome || "");
+    const status = String(value.status || value.intent || value.action || value.final_decision || value.decision || value.result || value.outcome || "");
+    const decision = intent || status || reply;
+    return {
+      reply,
+      intent,
+      status,
+      decision,
+      raw: JSON.stringify(value)
+    };
+  }
+
+  if (typeof value !== "string") return {
+    reply: String(value),
+    intent: "",
+    status: "",
+    decision: String(value),
+    raw: String(value)
+  };
+
+  const trimmed = value.trim();
+  if (!trimmed) return {
+    reply: "",
+    intent: "",
+    status: "",
+    decision: "",
+    raw: ""
+  };
+
+  if (/^[\[{]/.test(trimmed)) {
+    try {
+      return parseStructuredResponse(JSON.parse(trimmed));
+    } catch {
+      return {
+        reply: trimmed,
+        intent: "",
+        status: "",
+        decision: trimmed,
+        raw: trimmed
+      };
+    }
+  }
+
+  return {
+    reply: trimmed,
+    intent: "",
+    status: "",
+    decision: trimmed,
+    raw: trimmed
+  };
+};
+
+const getWebhookResponse = (body) => {
+  return parseStructuredResponse(
+    body.response ||
+    body.intent ||
+    body.extracted_data ||
+    body.agent_extraction ||
+    body.custom_extractions ||
+    body.summary ||
+    body.data?.response ||
+    body.data?.extracted_data ||
+    body.output?.response ||
+    body.output?.result ||
+    body.output_text ||
+    body.text ||
+    body.message ||
+    body.answer ||
+    body.ai_response ||
+    body.response_object ||
+    body.reply
+  );
+};
+
+const normalizeTranscriptText = (transcript) => {
+  if (!transcript) return "";
+  if (typeof transcript === "string") return transcript;
+  if (Array.isArray(transcript)) {
+    return transcript
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        if (!entry || typeof entry !== "object") return "";
+        return entry.text || entry.transcript || entry.content || "";
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+  if (typeof transcript === "object") {
+    return transcript.text || transcript.transcript || transcript.content ||
+      Object.values(transcript).filter((value) => typeof value === "string").join(" ") || "";
+  }
+  return "";
+};
+
 const extractIntent = (transcriptText, phase = 1) => {
   if (!transcriptText) return "";
 
-  // Convert to lowercase for case-insensitive matching
-  const text = transcriptText.toLowerCase();
+  const cleaned = transcriptText
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^(user|customer|caller|agent|jarvis|bot):\s*/i, ""))
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
-  // Look for confirmation keywords
-  if (text.includes("confirm") || text.includes("yes") || text.includes("haan") || text.includes("theek") || text.includes("ok")) {
-    return phase === 1 ? "confirmed" : "keep";
+  const matchAny = (terms) => terms.some((term) => cleaned.includes(term));
+
+  if (phase === 1) {
+    if (matchAny([
+      "yes", "confirm", "haan", "ha", "confirmed",
+      "theek hai", "bilkul", "rakh lo", "ji haan",
+      "kar do", "karo", "ho jaye"
+    ])) return "confirmed";
+
+    if (matchAny([
+      "no", "cancel", "nahi", "nai", "band karo",
+      "nahi chahiye", "ji nahi", "mat karo", "cancel karo"
+    ])) return "cancelled";
+
+    return "";
   }
 
-  // Look for cancellation
-  if (text.includes("cancel") || text.includes("nahi") || text.includes("nai") || text.includes("band karo")) {
-    return "cancelled";
-  }
-
-  // Phase 2 specific
   if (phase === 2) {
-    if (text.includes("reschedule") || text.includes("change") || text.includes("baad mein") || text.includes("kal") || text.includes("later")) {
-      return "rescheduled";
-    }
-    if (text.includes("keep") || text.includes("same slot") || text.includes("theek hai")) {
-      return "keep";
-    }
+    if (matchAny([
+      "reschedule", "change", "baad mein",
+      "later", "alag", "different", "slot change"
+    ])) return "rescheduled";
+
+    if (matchAny([
+      "keep", "same", "theek hai", "theek",
+      "rakhna", "thik", "rakh lo", "same slot"
+    ])) return "keep";
+
+    return "";
   }
 
   return "";
 };
 
 router.post("/bolna", async (req, res) => {
-  res.status(200).json({ ok: true });
+  // Verify webhook signature if secret is configured
+  if (!verifyWebhookSignature(req, env.bolnaWebhookSecret)) {
+    console.warn("[Webhook] ❌ Invalid signature");
+    return res.status(401).json({ error: "Invalid signature" });
+  }
 
   try {
     const body = JSON.parse(req.body.toString("utf8"));
-
-    const orderId =
-      body.context_details?.recipient_data?.orderId ||
-      body.orderId ||
-      body.metadata?.orderId ||
-      body.user_data?.orderId;
-
-    const phase = Number(
-      body.context_details?.recipient_data?.phase ||
-      body.phase ||
-      body.metadata?.phase ||
-      body.user_data?.phase ||
-      1
+    console.log(
+      "[Webhook] FULL context_details:",
+      JSON.stringify(body.context_details, null, 2)
     );
+    const { orderId, phase: rawPhase, callId, recipientData } = extractWebhookMetadata(body);
 
-    const transcriptText = typeof body.transcript === "string"
-      ? body.transcript
-      : Array.isArray(body.transcript)
-        ? body.transcript.map((t) => t.text || "").join(" ")
-        : "";
+    const phase = Number(rawPhase ?? 1);
+    const transcriptText = normalizeTranscriptText(body.transcript);
+    const response = getWebhookResponse(body);
+    const inferredResponse =
+      response.decision || response.reply || response.intent || response.status || response.raw || "";
+    const transcriptIntent = extractIntent(transcriptText, phase);
+    const responseString = transcriptIntent || inferredResponse || transcriptText || "";
 
-    console.log("[Webhook] orderId found:", orderId);
+    console.log(`[Webhook] Received — orderId: ${orderId}, phase: ${phase}, response: "${JSON.stringify(response)}", responseString: "${responseString}"`);
 
-    const response =
-      body.response ||
-      body.intent ||
-      extractIntent(transcriptText, phase);
+    // Debug logging for payload inspection
+    console.log("[Webhook] Debug - context_details keys:", body.context_details ? Object.keys(body.context_details) : 'null');
+    console.log("[Webhook] Debug - extracted_data keys:", body.extracted_data ? Object.keys(body.extracted_data) : 'null');
+    console.log("[Webhook] Debug - agent_extraction keys:", body.agent_extraction ? Object.keys(body.agent_extraction) : 'null');
+    console.log("[Webhook] Debug - metadata:", body.metadata);
+    console.log("[Webhook] Debug - recipientData found:", recipientData);
+    console.log("[Webhook] Debug - parsed response:", response);
 
     if (!orderId) {
-      console.warn("[Webhook] ❌ orderId still undefined - check FULL BODY log above");
-      return;
+      console.warn("[Webhook] ❌ Missing orderId — skipping");
+      console.warn("[Webhook] Payload summary:", {
+        rootKeys: Object.keys(body),
+        detectedPayload: {
+          orderId: body.orderId || body.order_id || body.orderID,
+          metadata: body.metadata,
+          recipient_data: body.context_details?.recipient_data || body.context?.recipient_data || body.recipient_data || body.data?.recipient_data,
+        },
+        nestedRecipientData: recipientData,
+      });
+      return res.status(200).json({ ok: true });
     }
 
-    // Guard: Only process webhooks with transcript (indicating actual call conversation)
-    if (!transcriptText || transcriptText.trim().length === 0) {
-      console.log("[Webhook] Ignoring webhook without transcript");
-      return;
-    }
-
-    const callId =
-      body.context_details?.recipient_data?.callId ||
-      body.call_id ||
-      body.execution_id ||
-      `manual_${Date.now()}`;
+    const finalCallId = callId || body.call_id || body.execution_id || `manual_${Date.now()}`;
 
     const durationSec = Number(
       body.telephony_data?.duration ||
@@ -96,16 +269,32 @@ router.post("/bolna", async (req, res) => {
     const transcript = transcriptText
       ? transcriptText.split("\n")
           .filter((line) => line.trim())
-          .map((line) => ({ text: line.trim() }))
+          .map((line) => {
+            const match = line.match(/^(assistant|user):\s*(.*)$/i);
+
+            return {
+               speaker: match?.[1] || "unknown",
+               text: match?.[2] || line.trim()
+            };
+          })
       : [];
 
-    const updated = await emitCallCompleted({ orderId, phase, response, callId, durationSec, transcript });
+    const updated = await emitCallCompleted({ orderId, phase, response: responseString, callId: finalCallId, durationSec, transcript });
 
-    if (!updated) console.warn(`[Webhook] ❌ Order not found in DB: ${orderId}`);
-    else console.log(`[Webhook] ✅ Order ${orderId} updated — phase ${phase}, response: "${response}"`);
+    if (!updated) {
+      console.warn(`[Webhook] ❌ Order not found in DB: ${orderId}`);
+    } else {
+      console.log(`[Webhook] ✅ Order ${orderId} updated — phase ${phase}, response: "${JSON.stringify(response)}"`);
+    }
+
+    return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("[Webhook] Error:", err.message);
+    return res.status(500).json({ error: "Webhook processing failed" });
   }
 });
 
 module.exports = router;
+module.exports.extractIntent = extractIntent;
+module.exports.getWebhookResponse = getWebhookResponse;
+module.exports.extractWebhookMetadata = extractWebhookMetadata;

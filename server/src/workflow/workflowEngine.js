@@ -1,35 +1,31 @@
 const { env } = require("../config/env");
 const { getOrder, updateOrder } = require("../data/store");
-const { triggerBolnaCall, applyWebhookDecision } = require("../services/callService");
+const { triggerBolnaCall, applyWebhookDecision, deliveryDefault } = require("../services/callService");
 const { schedulePhaseTwoCall } = require("../services/schedulerService");
+
+const callMetadata = (order, phase) => ({
+  orderId: order.id,
+  phase,
+  customerName: order.customer.name,
+  productName: order.product.name,
+  amount: order.product.amount,
+  ...(phase === 2 && { deliverySlot: order.deliverySlot || deliveryDefault }),
+});
 
 const emitOrderCreated = async (orderId) => {
   const order = await getOrder(orderId);
   if (!order) return null;
-  await updateOrder(orderId, { status: "Calling - Confirmation" });
-  try {
-    await triggerBolnaCall({
-      order,
-      phase: 1,
-      metadata: {
-        orderId: order.id || order._id?.toString(),
-        phase: 1,
-        customerName: order.customer.name,
-        productName: order.product.name,
-        amount: order.product.amount,
-      },
-    });
-  } catch (error) {
-    await updateOrder(orderId, {
-      status: "Retry Pending",
-      nextActionAt: new Date(Date.now() + env.retryDelayMinutes * 60 * 1000).toISOString(),
-    });
-  }
+  // Don't trigger call immediately - set status to "Pending" and let scheduler handle it
+  await updateOrder(orderId, {
+    status: "Pending",
+    workflowPhase: 1,
+    nextActionAt: new Date().toISOString(), // Set to now so scheduler picks it up immediately
+  });
   return getOrder(orderId);
 };
 
 const emitCallCompleted = async ({ orderId, phase, response, callId, durationSec, transcript }) => {
-  const updated = await applyWebhookDecision({
+  const result = await applyWebhookDecision({
     orderId,
     phase,
     response,
@@ -37,21 +33,20 @@ const emitCallCompleted = async ({ orderId, phase, response, callId, durationSec
     durationSec,
     transcript,
   });
-  if (!updated) return null;
+  if (!result) return null;
 
-  if (updated.status === "Confirmed") {
+  const { order: updated, duplicate } = result;
+  if (!duplicate && updated.status === "Confirmed") {
     await schedulePhaseTwoCall(orderId);
   }
 
-  if (updated.status === "Retry Pending" && updated.retryCount < updated.maxRetries) {
-    const delayMs = env.retryDelayMinutes * 60 * 1000;
-    await updateOrder(orderId, { nextActionAt: new Date(Date.now() + delayMs).toISOString() });
+  if (!duplicate && updated.status === "Retry Pending" && updated.retryCount < updated.maxRetries) {
+    await updateOrder(orderId, {
+      nextActionAt: new Date(Date.now() + env.retryDelayMinutes * 60 * 1000).toISOString(),
+    });
   }
 
   return getOrder(orderId);
 };
 
-module.exports = {
-  emitOrderCreated,
-  emitCallCompleted,
-};
+module.exports = { emitOrderCreated, emitCallCompleted };
