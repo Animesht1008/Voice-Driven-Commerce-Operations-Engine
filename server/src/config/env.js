@@ -23,6 +23,7 @@ const env = {
   bolnaVoiceId: process.env.BOLNA_VOICE_ID || "",
   bolnaWebhookPath: process.env.BOLNA_WEBHOOK_PATH || "/api/webhook/bolna",
   bolnaWebhookSecret: process.env.BOLNA_WEBHOOK_SECRET || "",
+  isProduction: process.env.NODE_ENV === "production",
 };
 
 module.exports = { env };

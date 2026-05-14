@@ -44,10 +44,14 @@ router.post("/", async (req, res) => {
       nextActionAt: null,
     });
 
+    if (!order) {
+      throw new Error("Order creation failed: created order is null.");
+    }
+
     const updated = await emitOrderCreated(order.id);
     return res.status(201).json({ order: updated });
   } catch (err) {
-    console.error("[orders] POST /", err.message);
+    console.error("[orders] POST /", err);
     res.status(500).json({ error: "Failed to create order." });
   }
 });

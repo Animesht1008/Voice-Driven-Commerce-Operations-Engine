@@ -102,8 +102,8 @@ const createOrder = async (payload) => {
     await writeDb(db);
     return order;
   } catch (err) {
-    console.error("[Store] createOrder error:", err.message);
-    return null;
+    console.error("[Store] createOrder error:", err);
+    throw err;
   }
 };
 
