@@ -2,6 +2,7 @@ const axios = require("axios");
 const { env } = require("../config/env");
 const { appendCallLog, updateOrder, getOrder } = require("../data/store");
 const { prompts, fillTemplate } = require("../utils/prompts");
+const { numberToWordsIndian } = require("../utils/numberToWords");
 
 const deliveryDefault = "Tomorrow 2-5 PM";
 const deliveryRescheduled = "Day after tomorrow 10 AM - 1 PM";
@@ -81,6 +82,7 @@ const buildCallPayload = ({ order, phase, promptText, callId, metadata }) => {
     metadata?.deliverySlot ?? order.deliverySlot ?? (phaseVal === 2 ? deliveryDefault : null);
 
   const amountValue = metadata?.amount ?? order.product.amount;
+  const amountWords = numberToWordsIndian(amountValue);
   const recipientData = {
     orderId: oid,
     order_id: oid,
@@ -96,7 +98,7 @@ const buildCallPayload = ({ order, phase, promptText, callId, metadata }) => {
     amount: amountValue,
     amount_text: String(amountValue),
     amount_rupees: `₹${amountValue}`,
-    amount_words: `rupees ${amountValue}`,
+    amount_words: amountWords,
     order_summary: `Your order for ${metadata?.productName || order.product.name} worth ₹${amountValue}`,
     ...(phaseVal === 2 && slotForAgent
       ? { delivery_slot: slotForAgent, deliverySlot: slotForAgent }
@@ -135,9 +137,11 @@ const triggerBolnaCall = async ({ order, phase, metadata }) => {
 
   const language = order.language || "en";
   const promptSet = prompts[language] || prompts.en;
+  const amountWords = numberToWordsIndian(order.product.amount);
   const promptText = fillTemplate(phase === 1 ? promptSet.phase1 : promptSet.phase2, {
     name: order.customer.name,
     product: order.product.name,
+    amount: amountWords,
     amount: order.product.amount,
   });
 
