@@ -184,13 +184,6 @@ npm start --prefix server
 - `POST /api/webhook/bolna` — receive Bolna webhook events
 - `GET /api/calls` — list flattened call logs
 
-## Workflow behavior
-
-- New orders start as `Pending` and are immediately scheduled for a Phase 1 call.
-- When Phase 1 succeeds, the order moves to `Confirmed` and Phase 2 is scheduled.
-- If Phase 1 or Phase 2 receives no valid confirmation, the order can move to `Retry Pending` and retry later.
-- Phase 2 handles delivery slot confirmation or rescheduling.
-
 ## Bolna webhook behavior
 
 Aligned with Voice-Driven-Commerce-Operations-Engine:
