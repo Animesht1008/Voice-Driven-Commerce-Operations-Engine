@@ -215,9 +215,14 @@ const applyWebhookDecision = async ({
   const order = await getOrder(orderId);
   if (!order) return null;
 
-  const existingCompleted = order.callLogs?.find((log) => log.phase === phase && log.status === "completed");
+  const existingCompleted = order.callLogs?.find(
+    (log) =>
+      log.phase === phase &&
+      log.status === "completed" &&
+      (callId ? log.callId === callId : true)
+  );
   if (existingCompleted) {
-    console.log(`[CallService] Duplicate webhook for phase ${phase} ignored`);
+    console.log(`[CallService] Duplicate webhook for phase ${phase} and call ${callId} ignored`);
     return { order, duplicate: true };
   }
 

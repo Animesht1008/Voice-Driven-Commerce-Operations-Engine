@@ -128,42 +128,70 @@ const getWebhookResponse = (body) => {
   return parseStructuredResponse(
     body.response ||
     body.intent ||
+    body.status ||
+    body.decision ||
+    body.final_decision ||
     body.extracted_data ||
     body.agent_extraction ||
     body.custom_extractions ||
     body.summary ||
     body.data?.response ||
-    body.data?.extracted_data ||
+    body.data?.decision ||
+    body.data?.status ||
+    body.data?.result ||
+    body.data?.output?.response ||
+    body.data?.output?.result ||
+    body.data?.output?.decision ||
+    body.data?.output?.status ||
     body.output?.response ||
     body.output?.result ||
+    body.output?.decision ||
+    body.output?.status ||
     body.output_text ||
     body.text ||
     body.message ||
     body.answer ||
     body.ai_response ||
     body.response_object ||
-    body.reply
+    body.reply ||
+    body.data ||
+    body.payload ||
+    body.metadata
   );
 };
 
 const normalizeTranscriptText = (transcript) => {
   if (!transcript) return "";
   if (typeof transcript === "string") return transcript;
+
+  const extractText = (entry) => {
+    if (typeof entry === "string") return entry;
+    if (!entry || typeof entry !== "object") return "";
+    return (
+      entry.text ||
+      entry.transcript ||
+      entry.content ||
+      entry.message ||
+      entry.response ||
+      entry.answer ||
+      entry.output ||
+      entry.payload ||
+      Object.values(entry)
+        .filter((value) => typeof value === "string")
+        .join(" ") ||
+      ""
+    );
+  };
+
   if (Array.isArray(transcript)) {
-    return transcript
-      .map((entry) => {
-        if (typeof entry === "string") return entry;
-        if (!entry || typeof entry !== "object") return "";
-        return entry.text || entry.transcript || entry.content || "";
-      })
-      .filter(Boolean)
-      .join(" ");
+    return transcript.map(extractText).filter(Boolean).join(" \n");
   }
+
   if (typeof transcript === "object") {
-    return transcript.text || transcript.transcript || transcript.content ||
-      Object.values(transcript).filter((value) => typeof value === "string").join(" ") || "";
+    return extractText(transcript);
   }
-  return "";
+
+  return String(transcript);
 };
 
 const extractIntent = (transcriptText, phase = 1) => {
@@ -180,14 +208,42 @@ const extractIntent = (transcriptText, phase = 1) => {
 
   if (phase === 1) {
     if (matchAny([
-      "yes", "confirm", "haan", "ha", "confirmed",
-      "theek hai", "bilkul", "rakh lo", "ji haan",
-      "kar do", "karo", "ho jaye"
+      "yes",
+      "confirm",
+      "okay",
+      "ok",
+      "sure",
+      "haan",
+      "ha",
+      "confirmed",
+      "theek hai",
+      "thik hai",
+      "bilkul",
+      "rakh lo",
+      "ji haan",
+      "kar do",
+      "karo",
+      "ho jaye",
+      "of course",
+      "theek",
+      "theek hai"
     ])) return "confirmed";
 
     if (matchAny([
-      "no", "cancel", "nahi", "nai", "band karo",
-      "nahi chahiye", "ji nahi", "mat karo", "cancel karo"
+      "no",
+      "cancel",
+      "nahi",
+      "nai",
+      "nah",
+      "nope",
+      "band karo",
+      "nahi chahiye",
+      "ji nahi",
+      "mat karo",
+      "cancel karo",
+      "don't",
+      "dont",
+      "stop"
     ])) return "cancelled";
 
     return "";
@@ -195,13 +251,39 @@ const extractIntent = (transcriptText, phase = 1) => {
 
   if (phase === 2) {
     if (matchAny([
-      "reschedule", "change", "baad mein",
-      "later", "alag", "different", "slot change"
+      "reschedule",
+      "postpone",
+      "change",
+      "baad mein",
+      "baad me",
+      "later",
+      "alag",
+      "different",
+      "slot change",
+      "tomorrow",
+      "kal",
+      "after",
+      "postpone",
+      "move",
+      "shift",
+      "dusra"
     ])) return "rescheduled";
 
     if (matchAny([
-      "keep", "same", "theek hai", "theek",
-      "rakhna", "thik", "rakh lo", "same slot"
+      "keep",
+      "same",
+      "theek hai",
+      "theek",
+      "thik",
+      "rakhna",
+      "rakh lo",
+      "same slot",
+      "ok",
+      "okay",
+      "sure",
+      "ha",
+      "haan",
+      "bilkul"
     ])) return "keep";
 
     return "";
@@ -226,7 +308,22 @@ router.post("/bolna", async (req, res) => {
     const { orderId, phase: rawPhase, callId, recipientData } = extractWebhookMetadata(body);
 
     const phase = Number(rawPhase ?? 1);
-    const transcriptText = normalizeTranscriptText(body.transcript);
+    const transcriptText = [
+      body.transcript,
+      body.data?.transcript,
+      body.output?.transcript,
+      body.data?.output?.transcript,
+      body.data?.conversation,
+      body.output?.conversation,
+      body.messages,
+      body.data?.messages,
+      body.conversation,
+      body.events,
+    ]
+      .map(normalizeTranscriptText)
+      .filter(Boolean)
+      .join(" \n");
+
     const response = getWebhookResponse(body);
     const inferredResponse =
       response.decision || response.reply || response.intent || response.status || response.raw || "";
