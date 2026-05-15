@@ -4,6 +4,37 @@ A full-stack COD order workflow with voice confirmation and delivery scheduling.
 
 The app allows a user to create a COD order, sends a Phase 1 verification call via Bolna, and once confirmed, schedules a Phase 2 delivery slot call. The frontend dashboard updates status and call logs as the workflow progresses.
 
+## System Architecture
+
+```mermaid
+flowchart TD
+    FE["<b>React Frontend</b><br/>Create Order / Dashboard / Logs"]
+    API["<b>Backend API</b><br/>Workflow Engine<br/>+ Scheduler<br/>+ State Manager"]
+    DB1[("MongoDB Atlas<br/>(Production)")]
+    DB2[("JSON Store<br/>(Local/Demo)")]
+    BOLNA["<b>Bolna Voice AI</b><br/>Agent Phone Call"]
+    PHONE["📞 Customer<br/>Phone"]
+    WEBHOOK["Webhook Listener<br/>/api/webhook/bolna"]
+    
+    FE -->|"POST /api/orders"| API
+    API -->|"Order Created"| BOLNA
+    BOLNA -->|"Phone Call"| PHONE
+    PHONE -->|"Speech"| BOLNA
+    BOLNA -->|"POST webhook"| WEBHOOK
+    WEBHOOK -->|"Update Order"| API
+    API -->|"Status Change"| FE
+    API -->|"Polling"| FE
+    
+    API -->|"STORAGE_MODE=mongo"| DB1
+    API -->|"STORAGE_MODE=json"| DB2
+    
+    style FE fill:#4f46e5,color:#fff
+    style API fill:#10b981,color:#fff
+    style BOLNA fill:#f59e0b,color:#fff
+    style WEBHOOK fill:#8b5cf6,color:#fff
+    style PHONE fill:#ef4444,color:#fff
+```
+
 ## Key features
 
 - Order creation form with customer details, product, amount, address, and language selection
