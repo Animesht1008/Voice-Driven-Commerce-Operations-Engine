@@ -4,8 +4,8 @@ const { appendCallLog, updateOrder, getOrder } = require("../data/store");
 const { prompts, fillTemplate } = require("../utils/prompts");
 const { numberToWordsIndian } = require("../utils/numberToWords");
 
-const deliveryDefault = "Tomorrow 2-5 PM";
-const deliveryRescheduled = "Day after tomorrow 10 AM - 1 PM";
+const deliveryDefault = "Tomorrow between  2pm to 5 PM";
+const deliveryRescheduled = "Day after tomorrow in between 11 AM to 5 PM";
 
 const inferResponse = (phase, response) => {
   const value = (response || "").toLowerCase();
@@ -99,6 +99,7 @@ const buildCallPayload = ({ order, phase, promptText, callId, metadata }) => {
     amount_text: String(amountValue),
     amount_rupees: `₹${amountValue}`,
     amount_words: amountWords,
+    amount_rupees_words: `rupees ${amountWords}`,
     order_summary: `Your order for ${metadata?.productName || order.product.name} worth ₹${amountValue}`,
     ...(phaseVal === 2 && slotForAgent
       ? { delivery_slot: slotForAgent, deliverySlot: slotForAgent }
@@ -114,7 +115,9 @@ const buildCallPayload = ({ order, phase, promptText, callId, metadata }) => {
       customer_name: recipientData.customer_name,
       product_name: recipientData.product_name,
       amount: recipientData.amount,
-      rupees: recipientData.amount_rupees,
+      rupees: recipientData.amount_rupees_words,
+      amount_words: recipientData.amount_words,
+      amount_rupees_words: recipientData.amount_rupees_words,
       order_summary: recipientData.order_summary,
     },
   };
@@ -142,7 +145,6 @@ const triggerBolnaCall = async ({ order, phase, metadata }) => {
     name: order.customer.name,
     product: order.product.name,
     amount: amountWords,
-    amount: order.product.amount,
   });
 
   const callId = metadata?.callId || `call_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
