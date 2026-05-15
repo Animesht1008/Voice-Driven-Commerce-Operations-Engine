@@ -22,7 +22,7 @@ function OrderTable({ orders, onSimulate, onDelete }) {
               <td>
                 <StatusBadge status={order.status} />
               </td>
-              <td>{order.deliverySlot || "-"}</td>
+              <td className="slot-cell">{order.deliverySlot || "-"}</td>
               <td className="actions">
                 <button
                   type="button"
