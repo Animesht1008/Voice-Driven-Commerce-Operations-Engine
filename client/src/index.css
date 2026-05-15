@@ -351,7 +351,9 @@ tbody td {
 .actions {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  min-width: 1%;
 }
 
 .actions button {
@@ -362,9 +364,7 @@ tbody td {
   background: #f8fafc;
   color: #0f172a;
   transition: transform 0.15s ease, background 0.15s ease;
-}
-
-.actions button:hover {
+  flex-shrink: 0;
   transform: translateY(-1px);
   background: #eff6ff;
 }
