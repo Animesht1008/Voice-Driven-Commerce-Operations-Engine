@@ -54,8 +54,8 @@ flowchart TD
 
 ## Stack
 
-- Frontend: React, Vite, React Router, Axios
-- Backend: Node.js, Express, dotenv, optional Mongoose
+- Frontend: React, Vite, React Router, Axios, Polling
+- Backend: Node.js, Express, Mongoose(Optional)
 - Storage: local JSON file or MongoDB
 - Voice integration: Bolna voice API + webhook handling
 
