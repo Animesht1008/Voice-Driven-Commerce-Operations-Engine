@@ -22,7 +22,7 @@ function CreateOrderPage() {
     <>
       <section className="card intro-card">
         <h2>📥 COD Form Dashboard</h2>
-        <p>Welcome to the COD order intake flow — create a new COD order and trigger voice confirmation + webhook workflows.</p>
+        <p>Please create a new COD order and trigger voice confirmation.</p>
       </section>
       <OrderForm onSubmit={submitOrder} loading={loading} />
       {message && <p className="flash">{message}</p>}
