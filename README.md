@@ -1,10 +1,20 @@
 # Voice-Driven Commerce Operations Engine
 
-A full-stack COD order workflow with voice confirmation and delivery scheduling.
+COD voice operations: **confirm** → **schedule delivery** → **auto-update** dashboard and call logs.
 
-The app allows a user to create a COD order, sends a Phase 1 verification call via Bolna, and once confirmed, schedules a Phase 2 delivery slot call. The frontend dashboard updates status and call logs as the workflow progresses.
+A full-stack COD order workflow with voice confirmation and delivery scheduling. The app allows a user to create a COD order, sends a Phase 1 verification call via Bolna, and once confirmed, schedules a Phase 2 delivery slot call. The frontend dashboard updates status and call logs as the workflow progresses.
 
-## System Architecture
+## What it does
+
+| Phase | Voice goal | Outcomes |
+|-------|-------------|----------|
+| 1 | COD confirmation | Confirmed / Cancelled / Retry Pending |
+| 2 | Delivery slot | Slot Confirmed / Rescheduled / Retry Pending |
+| 3 | Ops visibility | Dashboard + call logs + `nextActionAt` scheduling |
+
+## System design
+
+### Complete Integration Flow
 
 ```mermaid
 flowchart TD
@@ -34,6 +44,66 @@ flowchart TD
     style WEBHOOK fill:#8b5cf6,color:#fff
     style PHONE fill:#ef4444,color:#fff
 ```
+
+### Workflow architecture
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> CallingConfirmation: Order Created<br/>Phase 1 Triggered
+    
+    CallingConfirmation --> Confirmed: ✅ User says YES<br/>to confirmation
+    CallingConfirmation --> Cancelled: ❌ User says NO<br/>cancels order
+    CallingConfirmation --> RetryPending: ⏱️ No response<br/>or unclear
+    
+    Confirmed --> CallingDelivery: Phase 2 Scheduled<br/>nextActionAt reached
+    
+    CallingDelivery --> SlotConfirmed: ✅ Keep slot
+    CallingDelivery --> Rescheduled: 🔄 User reschedules<br/>new delivery date
+    CallingDelivery --> RetryPending: ⏱️ No response
+    
+    RetryPending --> CallingConfirmation: Retry Phase 1<br/>retryCount++
+    RetryPending --> CallingDelivery: Retry Phase 2<br/>retryCount++
+    RetryPending --> Completed: maxRetries reached
+    
+    Confirmed --> Completed: Delivery scheduled
+    Cancelled --> Completed: Order cancelled
+    Rescheduled --> Completed: Slot updated
+    
+    Completed --> [*]
+    
+    style CallingConfirmation fill:#fbbf24,stroke:#f59e0b,stroke-width:2px
+    style CallingDelivery fill:#fbbf24,stroke:#f59e0b,stroke-width:2px
+    style Confirmed fill:#86efac,stroke:#22c55e,stroke-width:2px
+    style Rescheduled fill:#86efac,stroke:#22c55e,stroke-width:2px
+    style SlotConfirmed fill:#86efac,stroke:#22c55e,stroke-width:2px
+    style Cancelled fill:#fca5a5,stroke:#ef4444,stroke-width:2px
+    style RetryPending fill:#e0e7ff,stroke:#6366f1,stroke-width:2px
+```
+
+### Webhook data flow
+
+```mermaid
+flowchart LR
+    A["📞 Bolna Call<br/>Completes"] 
+    B["Webhook POST:<br/>context_details.recipient_data<br/>+ transcript<br/>+ response"]
+    C["Parse:<br/>orderId<br/>phase<br/>intent"]
+    D["Update Order<br/>Status"]
+    E["Frontend<br/>Reflects<br/>Change"]
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    
+    style A fill:#f59e0b,color:#fff
+    style B fill:#8b5cf6,color:#fff
+    style C fill:#3b82f6,color:#fff
+    style D fill:#10b981,color:#fff
+    style E fill:#4f46e5,color:#fff
+```
+
+Statuses in the API use strings such as `Calling - Confirmation` and `Calling - Delivery Slot`; `workflowPhase` (1 or 2) decides which retry call is placed.
 
 ## Key features
 
