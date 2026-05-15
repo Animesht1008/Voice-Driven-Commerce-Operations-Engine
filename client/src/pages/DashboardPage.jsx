@@ -77,19 +77,31 @@ function DashboardPage() {
     <>
       <section className="overview-grid">
         <div className="card metric">
-          <p>Total Orders</p>
+          <div className="metric-top">
+            <span className="metric-icon">📦</span>
+            <span>Total Orders</span>
+          </div>
           <h3>{overview.total}</h3>
         </div>
         <div className="card metric">
-          <p>Confirmed</p>
+          <div className="metric-top">
+            <span className="metric-icon">✅</span>
+            <span>Confirmed</span>
+          </div>
           <h3>{overview.confirmed}</h3>
         </div>
         <div className="card metric">
-          <p>Cancelled</p>
+          <div className="metric-top">
+            <span className="metric-icon">❌</span>
+            <span>Cancelled</span>
+          </div>
           <h3>{overview.cancelled}</h3>
         </div>
         <div className="card metric">
-          <p>Pending Calls</p>
+          <div className="metric-top">
+            <span className="metric-icon">📞</span>
+            <span>Pending Calls</span>
+          </div>
           <h3>{overview.pendingCalls}</h3>
         </div>
       </section>

@@ -47,7 +47,7 @@ function OrderForm({ onSubmit, loading }) {
 
   return (
     <form className="card form" onSubmit={submit}>
-      <h2>Create COD Order</h2>
+      <h2>📝 Create COD Order</h2>
       <label>
         Name <input required name="name" value={form.name} onChange={handleChange} />
       </label>

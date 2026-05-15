@@ -1,7 +1,7 @@
 function CallLogTable({ logs, expandedId, onToggle }) {
   return (
     <div className="card">
-      <h2>Call Logs</h2>
+      <h2>📞 Call Logs</h2>
       <table>
         <thead>
           <tr>

@@ -3,7 +3,7 @@ import StatusBadge from "./StatusBadge";
 function OrderTable({ orders, onSimulate, onDelete }) {
   return (
     <div className="card">
-      <h2>Active Operations</h2>
+      <h2>📋 Active Operations</h2>
       <table>
         <thead>
           <tr>

@@ -8,11 +8,17 @@ function App() {
   return (
     <div className="app-shell" style={{ "--bg-image": `url(${bgImage})` }}>
       <header>
-        <h1>Voice-Driven Commerce Operations Engine</h1>
+        <div className="header-brand">
+          <span className="brand-icon">🤖</span>
+          <div>
+            <h1>Voice-Driven Commerce Operations Engine</h1>
+            <p className="app-subtitle">AI-Powered Workflow Automation for COD Operations</p>
+          </div>
+        </div>
         <nav>
-          <NavLink to="/">Create Order</NavLink>
-          <NavLink to="/dashboard">Operations Dashboard</NavLink>
-          <NavLink to="/call-logs">Call Logs</NavLink>
+          <NavLink to="/">📝 Create Order</NavLink>
+          <NavLink to="/dashboard">📊 Operations Dashboard</NavLink>
+          <NavLink to="/call-logs">📞 Call Logs</NavLink>
         </nav>
       </header>
       <main>
@@ -22,6 +28,7 @@ function App() {
           <Route path="/call-logs" element={<CallLogsPage />} />
         </Routes>
       </main>
+      <footer>© 2026 Animesh Tiwari</footer>
     </div>
   );
 }
