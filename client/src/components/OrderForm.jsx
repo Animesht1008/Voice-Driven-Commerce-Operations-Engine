@@ -9,16 +9,7 @@ const initialForm = {
   language: "en",
 };
 
-// Format phone to E.164 format (e.g., +919876543210)
-const formatPhoneE164 = (phone) => {
-  const cleaned = String(phone).trim().replace(/[^\d+]/g, "");
-  // If already starts with +, return as is
-  if (cleaned.startsWith("+")) return cleaned;
-  // If starts with country code without +, add +
-  if (cleaned.length >= 10) return "+" + cleaned;
-  // Otherwise add +91 (India) as default
-  return "+91" + cleaned;
-};
+const PHONE_REGEX = /^\+91\d{10}$/;
 
 function OrderForm({ onSubmit, loading }) {
   const [form, setForm] = useState(initialForm);
@@ -27,12 +18,13 @@ function OrderForm({ onSubmit, loading }) {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    
-    // Validate phone format on change
+
     if (name === "phone") {
-      const formatted = formatPhoneE164(value);
-      if (formatted.length < 11 || formatted.length > 15) {
-        setPhoneError("Phone must be 10-14 digits (will be formatted as +XXX...");
+      const trimmed = String(value).trim();
+      if (!trimmed.startsWith("+")) {
+        setPhoneError("Use country code in contact no. eg: +91XXXXXXXXXX");
+      } else if (!PHONE_REGEX.test(trimmed)) {
+        setPhoneError("Phone must be in +91XXXXXXXXXX format.");
       } else {
         setPhoneError("");
       }
@@ -41,17 +33,14 @@ function OrderForm({ onSubmit, loading }) {
 
   const submit = async (event) => {
     event.preventDefault();
-    
-    // Format phone before submitting
-    const formattedPhone = formatPhoneE164(form.phone);
-    const E164_REGEX = /^\+[1-9]\d{9,14}$/;
-    
-    if (!E164_REGEX.test(formattedPhone)) {
-      setPhoneError("Invalid phone number format. Use 10-14 digits.");
+
+    const phone = String(form.phone).trim();
+    if (!PHONE_REGEX.test(phone)) {
+      setPhoneError("Use country code in contact no. eg: +91XXXXXXXXXX");
       return;
     }
-    
-    await onSubmit({ ...form, phone: formattedPhone });
+
+    await onSubmit({ ...form, phone });
     setForm(initialForm);
     setPhoneError("");
   };
@@ -63,7 +52,7 @@ function OrderForm({ onSubmit, loading }) {
         Name <input required name="name" value={form.name} onChange={handleChange} />
       </label>
       <label>
-        Phone <input required name="phone" placeholder="+919876543210 (or 9876543210)" value={form.phone} onChange={handleChange} />
+        Phone <input required name="phone" placeholder="+91XXXXXXXXXX" value={form.phone} onChange={handleChange} />
         {phoneError && <small style={{ color: "red", display: "block", marginTop: "4px" }}>{phoneError}</small>}
       </label>
       <label>
