@@ -39,7 +39,7 @@ body {
 header {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 22px;
   padding-bottom: 18px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   margin-bottom: 24px;
@@ -68,7 +68,7 @@ header h1 {
 }
 
 .app-subtitle {
-  margin: 6px 0 0;
+  margin: 6px 0 12px;
   color: #475569;
   font-size: 1rem;
   max-width: 760px;
@@ -76,7 +76,7 @@ header h1 {
 
 nav {
   display: flex;
-  gap: 10px;
+  gap: 18px;
   flex-wrap: wrap;
 }
 
