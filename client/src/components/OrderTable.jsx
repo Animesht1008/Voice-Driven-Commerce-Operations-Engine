@@ -24,16 +24,32 @@ function OrderTable({ orders, onSimulate, onDelete }) {
               </td>
               <td>{order.deliverySlot || "-"}</td>
               <td className="actions">
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "confirmed", phase: 1 })}>
+                <button
+                  type="button"
+                  className="btn-confirm"
+                  onClick={() => onSimulate(order.id, { scenario: "confirmed", phase: 1 })}
+                >
                   Confirm
                 </button>
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "cancelled", phase: 1 })}>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => onSimulate(order.id, { scenario: "cancelled", phase: 1 })}
+                >
                   Cancel
                 </button>
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "no-answer", phase: 1 })}>
+                <button
+                  type="button"
+                  className="btn-muted"
+                  onClick={() => onSimulate(order.id, { scenario: "no-answer", phase: 1 })}
+                >
                   No Answer
                 </button>
-                <button type="button" onClick={() => onSimulate(order.id, { scenario: "rescheduled", phase: 2 })}>
+                <button
+                  type="button"
+                  className="btn-reschedule"
+                  onClick={() => onSimulate(order.id, { scenario: "rescheduled", phase: 2 })}
+                >
                   Reschedule
                 </button>
                 <button 

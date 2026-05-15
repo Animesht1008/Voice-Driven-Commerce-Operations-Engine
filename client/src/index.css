@@ -382,6 +382,46 @@ tbody td {
   background: #dc2626 !important;
 }
 
+/* Action button color variants */
+.actions .btn-confirm {
+  background: #10b981; /* green-500 */
+  color: #ffffff;
+  border-color: rgba(6, 95, 70, 0.12);
+  font-weight: 700;
+}
+.actions .btn-confirm:hover {
+  background: #059669; /* green-600 */
+}
+
+.actions .btn-reschedule {
+  background: #f59e0b; /* amber-500 */
+  color: #08121a;
+  border-color: rgba(120, 63, 6, 0.12);
+  font-weight: 700;
+}
+.actions .btn-reschedule:hover {
+  background: #d97706; /* amber-600 */
+}
+
+.actions .btn-cancel {
+  background: #ef4444; /* red-500 */
+  color: #ffffff;
+  border-color: rgba(127, 29, 29, 0.12);
+  font-weight: 700;
+}
+.actions .btn-cancel:hover {
+  background: #dc2626; /* red-600 */
+}
+
+.actions .btn-muted {
+  background: #94a3b8; /* slate-400 */
+  color: #071023;
+  border-color: rgba(15, 23, 42, 0.06);
+}
+.actions .btn-muted:hover {
+  background: #64748b; /* slate-500 */
+}
+
 .intro-card {
   margin-bottom: 18px;
 }
