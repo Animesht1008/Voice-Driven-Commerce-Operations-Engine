@@ -92,7 +92,8 @@ function OrderTable({ orders, onSimulate, onDelete }) {
                 </button>
               </td>
             </tr>
-          ))}
+          );
+        })}
         </tbody>
       </table>
       {orders.length === 0 && <p>No orders yet.</p>}
