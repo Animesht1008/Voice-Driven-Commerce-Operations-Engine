@@ -59,36 +59,6 @@ flowchart TD
 - Storage: local JSON file or MongoDB
 - Voice integration: Bolna voice API + webhook handling
 
-## Environment setup
-
-### `server/.env`
-
-Required values:
-
-- `PORT=5000`
-- `FRONTEND_URL=http://localhost:5173`
-- `APP_BASE_URL=http://localhost:5000`
-- `STORAGE_MODE=json` or `mongo`
-- `MONGODB_URI=` (when using `mongo`)
-- `WORKFLOW_TICK_MS=10000`
-- `RETRY_DELAY_MINUTES=1`
-- `MAX_RETRIES=2`
-- `SIMULATION_MODE=true`
-- `BOLNA_API_KEY=`
-- `BOLNA_API_BASE_URL=https://api.bolna.ai`
-- `BOLNA_AGENT_ID_PHASE1=`
-- `BOLNA_AGENT_ID_PHASE2=`
-- `BOLNA_WEBHOOK_PATH=/api/webhook/bolna`
-- `BOLNA_WEBHOOK_SECRET=`
-- `NODE_ENV=development`
-
-### `client/.env`
-
-For the frontend to call the backend:
-
-- `VITE_APP_BASE_URL=http://localhost:5000/api`
-
-> The frontend validation requires the phone number to be entered in the full international format: `+91XXXXXXXXXX`.
 
 ## Installation
 
