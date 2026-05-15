@@ -9,6 +9,22 @@ const deliveryRescheduled = "Day after tomorrow 10 AM - 1 PM";
 const inferResponse = (phase, response) => {
   const value = (response || "").toLowerCase();
   if (phase === 1) {
+    // prefer negative matches first to avoid agent prompt contamination
+    if (
+      [
+        "no",
+        "cancel",
+        "nahi",
+        "band karo",
+        "nahi chahiye",
+        "ji nahi",
+        "mat karo",
+        "cancel karo",
+      ].some((w) => value.includes(w))
+    ) {
+      return "cancelled";
+    }
+
     if (
       [
         "yes",
@@ -25,20 +41,6 @@ const inferResponse = (phase, response) => {
       ].some((w) => value.includes(w))
     ) {
       return "confirmed";
-    }
-    if (
-      [
-        "no",
-        "cancel",
-        "nahi",
-        "band karo",
-        "nahi chahiye",
-        "ji nahi",
-        "mat karo",
-        "cancel karo",
-      ].some((w) => value.includes(w))
-    ) {
-      return "cancelled";
     }
     return "no-response";
   }

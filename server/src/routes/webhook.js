@@ -285,6 +285,24 @@ const extractIntent = (transcriptText, phase = 1) => {
   const matchAny = (terms) => terms.some((term) => cleaned.includes(term));
 
   if (phase === 1) {
+    // Check for explicit negatives first to avoid agent-prompt contamination
+    if (matchAny([
+      "no",
+      "cancel",
+      "nahi",
+      "nai",
+      "nah",
+      "nope",
+      "band karo",
+      "nahi chahiye",
+      "ji nahi",
+      "mat karo",
+      "cancel karo",
+      "don't",
+      "dont",
+      "stop"
+    ])) return "cancelled";
+
     if (matchAny([
       "yes",
       "confirm",
@@ -306,23 +324,6 @@ const extractIntent = (transcriptText, phase = 1) => {
       "theek",
       "theek hai"
     ])) return "confirmed";
-
-    if (matchAny([
-      "no",
-      "cancel",
-      "nahi",
-      "nai",
-      "nah",
-      "nope",
-      "band karo",
-      "nahi chahiye",
-      "ji nahi",
-      "mat karo",
-      "cancel karo",
-      "don't",
-      "dont",
-      "stop"
-    ])) return "cancelled";
 
     return "";
   }
