@@ -6,12 +6,12 @@ function OrderTable({ orders, onSimulate, onDelete }) {
       <h2>📋 Active Operations</h2>
       <table>
         <thead>
-          <tr>
-            <th>Customer</th>
-            <th>Order</th>
-            <th>Status</th>
-            <th>Delivery Slot</th>
-            <th>Demo Actions</th>
+            <tr>
+              <th>Customer</th>
+              <th>Order</th>
+              <th>Status</th>
+              <th>Delivery Slot</th>
+              <th>Manual Actions</th>
           </tr>
         </thead>
         <tbody>
