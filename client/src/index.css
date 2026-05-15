@@ -165,6 +165,10 @@ button {
   transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
+.form button {
+  margin-top: 10px;
+}
+
 button:hover {
   transform: translateY(-1px);
   background: #1d4ed8;
