@@ -124,41 +124,11 @@ Statuses in the API use strings such as `Calling - Confirmation` and `Calling - 
 
 ## Stack
 
-- Frontend: React, Vite, React Router, Axios
-- Backend: Node.js, Express, dotenv, optional Mongoose
+- Frontend: React, Vite, React Router, Axios, Polling
+- Backend: Node.js, Express, Mongoose(Optional)
 - Storage: local JSON file or MongoDB
 - Voice integration: Bolna voice API + webhook handling
 
-## Environment setup
-
-### `server/.env`
-
-Required values:
-
-- `PORT=5000`
-- `FRONTEND_URL=http://localhost:5173`
-- `APP_BASE_URL=http://localhost:5000`
-- `STORAGE_MODE=json` or `mongo`
-- `MONGODB_URI=` (when using `mongo`)
-- `WORKFLOW_TICK_MS=10000`
-- `RETRY_DELAY_MINUTES=1`
-- `MAX_RETRIES=2`
-- `SIMULATION_MODE=true`
-- `BOLNA_API_KEY=`
-- `BOLNA_API_BASE_URL=https://api.bolna.ai`
-- `BOLNA_AGENT_ID_PHASE1=`
-- `BOLNA_AGENT_ID_PHASE2=`
-- `BOLNA_WEBHOOK_PATH=/api/webhook/bolna`
-- `BOLNA_WEBHOOK_SECRET=`
-- `NODE_ENV=development`
-
-### `client/.env`
-
-For the frontend to call the backend:
-
-- `VITE_APP_BASE_URL=http://localhost:5000/api`
-
-> The frontend validation requires the phone number to be entered in the full international format: `+91XXXXXXXXXX`.
 
 ## Installation
 
@@ -223,18 +193,27 @@ npm start --prefix server
 
 ## Bolna webhook behavior
 
-- Incoming webhook payloads are parsed from `context_details.recipient_data` and fallback fields.
-- The webhook extracts `orderId`, `phase`, and `callId` to update the correct order workflow.
-- It ignores lifecycle-only events like `initiated`, `ringing`, or `in-progress`.
-- It infers user intent from transcript text when explicit intent fields are missing.
-- Duplicate completed webhooks for the same phase are ignored.
+Aligned with Voice-Driven-Commerce-Operations-Engine:
 
-## Production notes
+- Raw JSON body on POST /api/webhook/bolna so BOLNA_WEBHOOK_SECRET HMAC can use the exact request bytes (not JSON.stringify after parsing).
+- Immediate 200 { ok, received } response, then async processing (Bolna-friendly timeouts/retries).
+- Parses context_details.recipient_data (and fallbacks) for orderId / phase / callId.
+- extractIntent() from transcript text (English + common Hindi tokens) when intent is missing.
+- transcript.summary (object-shaped transcript) is merged into text and used as a fallback response when Bolna sends a summary only.
+- Ignores events with no transcript (pings / partial payloads) so they do not mutate workflow state.
+- Duplicate completed webhooks for the same phase are ignored (no double state transitions).
 
-- Use `STORAGE_MODE=mongo` and set `MONGODB_URI` for a persistent database in production.
-- Set correct `APP_BASE_URL`, `FRONTEND_URL`, and Bolna webhook URL in your deployment.
-- For Render/Vercel, frontend should point to backend API at `VITE_APP_BASE_URL=https://<backend-host>/api`.
-- Keep `BOLNA_WEBHOOK_SECRET` configured if Bolna supports signing webhooks.
+Outbound calls include recipient_data / user_data / extra_data so Bolna can echo identifiers back into webhooks. Phase 2 also sends delivery_slot / deliverySlot for dashboard agent templates (e.g. {{delivery_slot}}).
+
+Scheduling: RETRY_DELAY_MINUTES controls retry spacing; PHASE2_DELAY_MINUTES (default 2) controls how long after confirmation the delivery call is scheduled in production (simulation still uses 30s). JSON file mode applies the same Confirmed / Retry Pending filter as Mongo when selecting due orders (fixes a common demo bug).
+
+## Production (Render + MongoDB Atlas)
+
+- Atlas: cluster + user + allow 0.0.0.0/0 (or Render IPs) → MONGODB_URI
+- Render (backend): root server, build npm install, start npm start
+- Set STORAGE_MODE=mongo, MONGODB_URI, APP_BASE_URL (Render URL), FRONTEND_URL (Render URL), Bolna vars from dashboard.
+- Render (frontend): root client, VITE_API_URL=https://<render-host>/api
+- Bolna: webhook = https://<render-host>/api/webhook/bolna
 
 ## Notes
 
