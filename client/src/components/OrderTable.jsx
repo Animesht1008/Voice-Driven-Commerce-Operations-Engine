@@ -1,5 +1,28 @@
 import StatusBadge from "./StatusBadge";
 
+const splitLongName = (name, maxLength) => {
+  if (name.length <= maxLength) return <span>{name}</span>;
+
+  const breakIndex = name.lastIndexOf(" ", maxLength);
+  if (breakIndex <= 0) {
+    return (
+      <>
+        <span>{name.slice(0, maxLength)}</span>
+        <br />
+        <span>{name.slice(maxLength)}</span>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <span>{name.slice(0, breakIndex)}</span>
+      <br />
+      <span>{name.slice(breakIndex + 1)}</span>
+    </>
+  );
+};
+
 function OrderTable({ orders, onSimulate, onDelete }) {
   return (
     <div className="card">
@@ -15,13 +38,20 @@ function OrderTable({ orders, onSimulate, onDelete }) {
           </tr>
         </thead>
         <tbody>
-          {orders.map((order) => (
-            <tr key={order.id}>
-              <td>{order.customer.name}</td>
-              <td>{order.product.name}</td>
-              <td>
-                <StatusBadge status={order.status} />
-              </td>
+          {orders.map((order) => {
+            const customerNeedsBreak =
+              order.customer.name.length > 14 && order.product.name.length > 12;
+            return (
+              <tr key={order.id}>
+                <td className={customerNeedsBreak ? "customer-break" : ""}>
+                  {customerNeedsBreak
+                    ? splitLongName(order.customer.name, 14)
+                    : order.customer.name}
+                </td>
+                <td>{order.product.name}</td>
+                <td>
+                  <StatusBadge status={order.status} />
+                </td>
               <td className="slot-cell">{order.deliverySlot || "-"}</td>
               <td className="actions">
                 <button
