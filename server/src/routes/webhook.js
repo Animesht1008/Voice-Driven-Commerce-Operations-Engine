@@ -131,6 +131,10 @@ const getWebhookResponse = (body) => {
     body.status ||
     body.decision ||
     body.final_decision ||
+    body.call_status ||
+    body.callState ||
+    body.event ||
+    body.result ||
     body.extracted_data ||
     body.agent_extraction ||
     body.custom_extractions ||
@@ -143,6 +147,7 @@ const getWebhookResponse = (body) => {
     body.data?.output?.result ||
     body.data?.output?.decision ||
     body.data?.output?.status ||
+    body.data?.event ||
     body.output?.response ||
     body.output?.result ||
     body.output?.decision ||
@@ -192,6 +197,79 @@ const normalizeTranscriptText = (transcript) => {
   }
 
   return String(transcript);
+};
+
+const extractUserTranscript = (transcriptText) => {
+  if (!transcriptText) return "";
+
+  const lines = transcriptText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const userLines = lines.filter((line) => /^(user|customer|caller):/i.test(line));
+  if (userLines.length > 0) {
+    return userLines
+      .map((line) => line.replace(/^(user|customer|caller):/i, "").trim())
+      .join(" ");
+  }
+
+  const assistantLines = lines.filter((line) => /^(assistant|agent|bot):/i.test(line));
+  const remainingLines = lines.filter(
+    (line) => !/^(assistant|agent|bot|user|customer|caller):/i.test(line)
+  );
+
+  const ignoredPromptPattern = /can i confirm this order|confirm this order for you|are you okay with this order|please confirm|should we place this order|confirm your order|confirm order/i;
+  const filtered = remainingLines.filter((line) => !ignoredPromptPattern.test(line));
+
+  if (filtered.length > 0) {
+    return filtered[filtered.length - 1];
+  }
+
+  if (lines.length > 0) {
+    return lines[lines.length - 1];
+  }
+
+  return "";
+};
+
+const normalizeStatus = (value) => {
+  if (!value) return "";
+  return String(value).toLowerCase().trim();
+};
+
+const isLifecycleStatus = (status) => {
+  if (!status) return false;
+  return [
+    "initiated",
+    "ringing",
+    "in-progress",
+    "in progress",
+    "queued",
+    "dialing",
+    "connected",
+    "started",
+    "answered",
+    "ongoing",
+    "calling"
+  ].some((term) => status.includes(term));
+};
+
+const isTerminalStatus = (status) => {
+  if (!status) return false;
+  return [
+    "completed",
+    "call-disconnected",
+    "disconnected",
+    "hangup",
+    "terminated",
+    "busy",
+    "no-answer",
+    "no answer",
+    "failed",
+    "cancelled",
+    "cancel"
+  ].some((term) => status.includes(term));
 };
 
 const extractIntent = (transcriptText, phase = 1) => {
@@ -307,7 +385,22 @@ router.post("/bolna", async (req, res) => {
     );
     const { orderId, phase: rawPhase, callId, recipientData } = extractWebhookMetadata(body);
 
+    if (!orderId) {
+      console.warn("[Webhook] ❌ Missing orderId — skipping");
+      console.warn("[Webhook] Payload summary:", {
+        rootKeys: Object.keys(body),
+        detectedPayload: {
+          orderId: body.orderId || body.order_id || body.orderID,
+          metadata: body.metadata,
+          recipient_data: body.context_details?.recipient_data || body.context?.recipient_data || body.recipient_data || body.data?.recipient_data,
+        },
+        nestedRecipientData: recipientData,
+      });
+      return res.status(200).json({ ok: true });
+    }
+
     const phase = Number(rawPhase ?? 1);
+    const finalCallId = callId || body.call_id || body.execution_id || `manual_${Date.now()}`;
     const transcriptText = [
       body.transcript,
       body.data?.transcript,
@@ -325,10 +418,41 @@ router.post("/bolna", async (req, res) => {
       .join(" \n");
 
     const response = getWebhookResponse(body);
-    const inferredResponse =
-      response.decision || response.reply || response.intent || response.status || response.raw || "";
-    const transcriptIntent = extractIntent(transcriptText, phase);
-    const responseString = transcriptIntent || inferredResponse || transcriptText || "";
+    const normalizedResponse = normalizeStatus(
+      response.decision || response.reply || response.intent || response.status || response.raw || ""
+    );
+    const userTranscript = extractUserTranscript(transcriptText);
+    const transcriptIntent = extractIntent(userTranscript, phase);
+    const responseString = transcriptIntent || normalizedResponse || userTranscript || "";
+
+    const lifecycleEvent = isLifecycleStatus(normalizedResponse) && !transcriptIntent;
+    if (lifecycleEvent) {
+      console.log(
+        `[Webhook] Ignoring lifecycle call state event for phase ${phase} call ${finalCallId} status=${normalizedResponse}`
+      );
+      return res.status(200).json({ ok: true });
+    }
+
+    const finalResponse = responseString || "no-response";
+    const durationSec = Number(
+      body.telephony_data?.duration ||
+      body.durationSec ||
+      body.duration ||
+      40
+    );
+
+    const transcript = userTranscript
+      ? [{ speaker: "user", text: userTranscript }]
+      : [];
+
+    const updated = await emitCallCompleted({
+      orderId,
+      phase,
+      response: finalResponse,
+      callId: finalCallId,
+      durationSec,
+      transcript,
+    });
 
     console.log(`[Webhook] Received — orderId: ${orderId}, phase: ${phase}, response: "${JSON.stringify(response)}", responseString: "${responseString}"`);
 
@@ -339,44 +463,6 @@ router.post("/bolna", async (req, res) => {
     console.log("[Webhook] Debug - metadata:", body.metadata);
     console.log("[Webhook] Debug - recipientData found:", recipientData);
     console.log("[Webhook] Debug - parsed response:", response);
-
-    if (!orderId) {
-      console.warn("[Webhook] ❌ Missing orderId — skipping");
-      console.warn("[Webhook] Payload summary:", {
-        rootKeys: Object.keys(body),
-        detectedPayload: {
-          orderId: body.orderId || body.order_id || body.orderID,
-          metadata: body.metadata,
-          recipient_data: body.context_details?.recipient_data || body.context?.recipient_data || body.recipient_data || body.data?.recipient_data,
-        },
-        nestedRecipientData: recipientData,
-      });
-      return res.status(200).json({ ok: true });
-    }
-
-    const finalCallId = callId || body.call_id || body.execution_id || `manual_${Date.now()}`;
-
-    const durationSec = Number(
-      body.telephony_data?.duration ||
-      body.durationSec ||
-      body.duration ||
-      40
-    );
-
-    const transcript = transcriptText
-      ? transcriptText.split("\n")
-          .filter((line) => line.trim())
-          .map((line) => {
-            const match = line.match(/^(assistant|user):\s*(.*)$/i);
-
-            return {
-               speaker: match?.[1] || "unknown",
-               text: match?.[2] || line.trim()
-            };
-          })
-      : [];
-
-    const updated = await emitCallCompleted({ orderId, phase, response: responseString, callId: finalCallId, durationSec, transcript });
 
     if (!updated) {
       console.warn(`[Webhook] ❌ Order not found in DB: ${orderId}`);
