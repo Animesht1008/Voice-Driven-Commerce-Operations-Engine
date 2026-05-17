@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
+const path = require("path");
 const { env } = require("./config/env");
 const ordersRoutes = require("./routes/orders");
 const webhookRoutes = require("./routes/webhook");
@@ -20,5 +21,15 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/orders", ordersRoutes);
 app.use("/api/webhook", webhookRoutes);
 app.use("/api/calls", callsRoutes);
+
+// Serve static files from the built React app
+const clientBuildPath = path.join(__dirname, "../../client/dist");
+app.use(express.static(clientBuildPath));
+
+// SPA fallback: serve index.html for all non-API routes
+// This allows React Router to handle client-side routing
+app.use((req, res) => {
+  res.sendFile(path.join(clientBuildPath, "index.html"));
+});
 
 module.exports = { app };
