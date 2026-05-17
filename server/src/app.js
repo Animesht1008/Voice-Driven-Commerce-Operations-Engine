@@ -26,9 +26,12 @@ app.use("/api/calls", callsRoutes);
 const clientBuildPath = path.join(__dirname, "../../client/dist");
 app.use(express.static(clientBuildPath));
 
-// SPA fallback: serve index.html for all non-API routes
-// This allows React Router to handle client-side routing
+// SPA fallback: send index.html for all GET requests that are not handled by API or static routes
+// This enables client-side routing to work on browser refresh and direct URL access.
 app.use((req, res) => {
+  if (req.method !== "GET") {
+    return res.status(404).send("Not Found");
+  }
   res.sendFile(path.join(clientBuildPath, "index.html"));
 });
 
